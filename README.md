@@ -4,4 +4,4 @@ This project is a package management solution meant to replace dependency on too
 ## Collaborators
 
 * Nathan Allie
-* Roshen Cherian 
+* Roshen Cherian
