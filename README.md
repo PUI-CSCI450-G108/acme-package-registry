@@ -5,6 +5,7 @@ This project is a package management solution meant to replace dependency on too
 
 * Nathan Allie
 * Roshen Cherian
+* Lekhya sree Akella
 
 # ACME Package Registry
 
@@ -26,3 +27,4 @@ A CLI tool to evaluate and score Hugging Face models, datasets, and codebases fo
 - Python 3.11+
 - Typer, Pydantic, HuggingFace Hub, GitPython, pytest, black, isort, flake8, mypy
 - See `Makefile` for common tasks
+=======
