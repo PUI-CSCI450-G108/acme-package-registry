@@ -6,3 +6,4 @@ This project is a package management solution meant to replace dependency on too
 * Nathan Allie
 * Roshen Cherian
 * Lekhya sree Akella
+* Raja Allmdar Tariq Ali
