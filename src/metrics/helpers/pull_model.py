@@ -24,15 +24,15 @@ def pull_model_info(url: str) -> dict:
         # Dataset: https://huggingface.co/datasets/<namespace>/<repo>
         # get string after /datasets/
         name = url.split("/datasets/")[1]
-        info = hf_api.dataset_info(name)
+        info = hf_api.dataset_info(name, files_metadata=True)
     if url_type == UrlType.HUGGING_FACE_MODEL:
         # Model: https://huggingface.co/<namespace>/<repo>
         name = url.split("huggingface.co/")[1]
-        info = hf_api.model_info(name)
+        info = hf_api.model_info(name, files_metadata=True)
     if url_type == UrlType.HUGGING_FACE_CODEBASE:
         # Code/Space: https://huggingface.co/spaces/<namespace>/<repo>
         name = url.split("/spaces/")[1]
-        info = hf_api.space_info(name)
+        info = hf_api.space_info(name, files_metadata=True)
     if url_type == UrlType.GIT_REPO:
         # TODO: Implement git repo info pull
         return None
@@ -73,17 +73,18 @@ def get_url_type(url: str) -> str:
     return UrlType.INVALID
 
 
-    # Test cases
-"""
-    info = pull_model_info("https://huggingface.co/google/gemma-3-270m")
-    print(info)
+# Test cases
 
-    info = pull_model_info("https://huggingface.co/datasets/glue")
-    print(info)
+# info = pull_model_info("https://huggingface.co/google/gemma-3-270m")
+# print("Model:\n\n\n\n")
+# print(info)
 
-    info = pull_model_info("https://huggingface.co/spaces/gradio/hello_world")
-    print(info)
+# print("Dataset:\n\n\n\n")
+# info = pull_model_info("https://huggingface.co/datasets/xlangai/AgentNet")
+# print(info)
 
-    info = pull_model_info("https://huggingface.co/bert-base-uncased")
-    print(info)
-"""
+# print("Space:\n\n\n\n")
+# info = pull_model_info("https://huggingface.co/spaces/gradio/hello_world")
+# print(info)
+
+
