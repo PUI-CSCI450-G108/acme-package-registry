@@ -1,4 +1,5 @@
 from typing import Dict
+
 from pydantic import BaseModel, Field
 
 
@@ -37,7 +38,8 @@ class NDJsonOutput(BaseModel):
         ..., ge=0, description="Time to compute license info in milliseconds"
     )
     size_score: Dict[str, float] = Field(
-        ..., description="Dictionary mapping hardware types to size compatibility scores (0-1)"
+        ...,
+        description="Dictionary mapping hardware types to size compatibility scores (0-1)",
     )
     size_score_latency: int = Field(
         ..., ge=0, description="Time to compute size score in milliseconds"
@@ -61,4 +63,3 @@ class NDJsonOutput(BaseModel):
     code_quality_latency: int = Field(
         ..., ge=0, description="Time to compute code quality in milliseconds"
     )
-

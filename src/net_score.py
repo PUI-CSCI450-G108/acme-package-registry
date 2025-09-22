@@ -1,5 +1,5 @@
 import time
-from typing import Dict, Any, Tuple
+from typing import Any, Dict, Tuple
 
 
 def calculate_net_score(metrics: Dict[str, Any]) -> Tuple[float, int]:

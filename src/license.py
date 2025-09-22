@@ -1,7 +1,8 @@
 import logging
 import re
 from typing import Any
-from huggingface_hub import hf_hub_download, HfFileSystem
+
+from huggingface_hub import HfFileSystem, hf_hub_download
 
 
 def _fetch_readme_content(model_info: Any) -> str:
@@ -10,9 +11,7 @@ def _fetch_readme_content(model_info: Any) -> str:
         # Check if README.md exists in the sibling files list
         fs = HfFileSystem()
         paths = fs.ls(model_info.id, detail=False)
-        readme_path = next(
-            (p for p in paths if p.endswith("README.md")), None
-        )
+        readme_path = next((p for p in paths if p.endswith("README.md")), None)
 
         if not readme_path:
             logging.warning(f"No README.md file found for model {model_info.id}")
@@ -53,7 +52,11 @@ def compute_license_metric(model_info: Any) -> float:
 
     license_str = ""
     # Prefer the structured license field in cardData
-    if hasattr(model_info, "cardData") and model_info.cardData and "license" in model_info.cardData:
+    if (
+        hasattr(model_info, "cardData")
+        and model_info.cardData
+        and "license" in model_info.cardData
+    ):
         license_str = model_info.cardData["license"]
 
     if not license_str:
@@ -63,14 +66,18 @@ def compute_license_metric(model_info: Any) -> float:
             return 0.5  # Unclear if there's no README
 
         # Search for a "License" section
-        match = re.search(r"##?\s*License\s*\n(.+?)(?=\n##|$)", readme_content, re.IGNORECASE | re.DOTALL)
+        match = re.search(
+            r"##?\s*License\s*\n(.+?)(?=\n##|$)",
+            readme_content,
+            re.IGNORECASE | re.DOTALL,
+        )
         if match:
             license_str = match.group(1).strip().lower()
         else:
-            return 0.5 # Unclear if no license section
+            return 0.5  # Unclear if no license section
 
     if not license_str:
-        return 0.5 # Unclear
+        return 0.5  # Unclear
 
     # Check for compatibility
     license_str_lower = license_str.lower()
@@ -82,4 +89,4 @@ def compute_license_metric(model_info: Any) -> float:
         if lic in license_str_lower:
             return 1.0
 
-    return 0.5 # Unclear if it doesn't match known lists
+    return 0.5  # Unclear if it doesn't match known lists

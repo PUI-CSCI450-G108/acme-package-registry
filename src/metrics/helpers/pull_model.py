@@ -1,19 +1,21 @@
-from huggingface_hub import HfApi
-import validators
 from enum import Enum
 
- 
+import validators
+from huggingface_hub import HfApi
+
+
 # Define enum for url types
 class UrlType(Enum):
-    HUGGING_FACE_MODEL = "hugging_face_model",
-    HUGGING_FACE_DATASET = "hugging_face_dataset",
-    HUGGING_FACE_CODEBASE = "hugging_face_codebase",
-    GIT_REPO = "git_repo",
-    OTHER = "other",
+    HUGGING_FACE_MODEL = ("hugging_face_model",)
+    HUGGING_FACE_DATASET = ("hugging_face_dataset",)
+    HUGGING_FACE_CODEBASE = ("hugging_face_codebase",)
+    GIT_REPO = ("git_repo",)
+    OTHER = ("other",)
     INVALID = "invalid"
 
 
 hf_api = HfApi()
+
 
 def pull_model_info(url: str) -> dict:
     url_type = get_url_type(url)
@@ -40,8 +42,6 @@ def pull_model_info(url: str) -> dict:
         raise ValueError("Other URL type: " + url)
 
     return info
-
-
 
 
 ## Parses the url and returns the type of the url
@@ -86,5 +86,3 @@ def get_url_type(url: str) -> str:
 # print("Space:\n\n\n\n")
 # info = pull_model_info("https://huggingface.co/spaces/gradio/hello_world")
 # print(info)
-
-

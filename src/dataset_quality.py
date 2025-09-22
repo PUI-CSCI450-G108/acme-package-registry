@@ -1,6 +1,7 @@
 import logging
 from typing import Any
-from huggingface_hub import hf_hub_download, HfFileSystem
+
+from huggingface_hub import HfFileSystem, hf_hub_download
 
 
 def _fetch_readme_content(model_info: Any) -> str:
@@ -32,7 +33,11 @@ def compute_dataset_quality_metric(model_info: Any) -> float:
     """
     # Step 1: Check if a dataset is mentioned at all
     dataset_name = None
-    if hasattr(model_info, "cardData") and model_info.cardData and model_info.cardData.get("datasets"):
+    if (
+        hasattr(model_info, "cardData")
+        and model_info.cardData
+        and model_info.cardData.get("datasets")
+    ):
         dataset_name = model_info.cardData.get("datasets")
 
     if not dataset_name:
@@ -41,13 +46,13 @@ def compute_dataset_quality_metric(model_info: Any) -> float:
     # Step 2: Analyze README for quality of documentation
     readme_content = _fetch_readme_content(model_info)
     if not readme_content:
-        return 0.5 # Dataset is named, but we can't verify quality from README
+        return 0.5  # Dataset is named, but we can't verify quality from README
 
     readme_lower = readme_content.lower()
 
     # Keywords that indicate good documentation about the dataset
     quality_keywords = ["size", "samples", "split", "features", "diversity", "source"]
-    
+
     found_keywords = sum(1 for keyword in quality_keywords if keyword in readme_lower)
 
     # Scoring based on findings

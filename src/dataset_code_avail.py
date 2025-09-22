@@ -1,6 +1,7 @@
 import logging
 from typing import Any
-from huggingface_hub import hf_hub_download, HfFileSystem
+
+from huggingface_hub import HfFileSystem, hf_hub_download
 
 
 def _fetch_readme_content(model_info: Any) -> str:
@@ -36,7 +37,11 @@ def compute_dataset_code_avail_metric(model_info: Any) -> float:
     # Check for Dataset Availability (+0.5)
     # 1. Check the structured cardData
     dataset_mentioned = False
-    if hasattr(model_info, "cardData") and model_info.cardData and model_info.cardData.get("datasets"):
+    if (
+        hasattr(model_info, "cardData")
+        and model_info.cardData
+        and model_info.cardData.get("datasets")
+    ):
         dataset_mentioned = True
     # 2. Check README for keywords
     elif "dataset" in readme_lower or "trained on" in readme_lower:

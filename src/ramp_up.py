@@ -1,7 +1,8 @@
 import logging
 import math
 from typing import Any
-from huggingface_hub import hf_hub_download, HfFileSystem
+
+from huggingface_hub import HfFileSystem, hf_hub_download
 
 
 def _fetch_readme_content(model_info: Any) -> str:
@@ -11,8 +12,8 @@ def _fetch_readme_content(model_info: Any) -> str:
         fs = HfFileSystem()
         paths = fs.ls(model_info.id, detail=False)
         if not any(p.endswith("README.md") for p in paths):
-             logging.warning(f"No README.md file found for model {model_info.id}")
-             return ""
+            logging.warning(f"No README.md file found for model {model_info.id}")
+            return ""
 
         readme_file = hf_hub_download(
             repo_id=model_info.id, filename="README.md", repo_type="model"
