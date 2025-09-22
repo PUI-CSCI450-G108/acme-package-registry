@@ -3,6 +3,13 @@ import os
 import sys
 import typer
 import logging
+
+# FIX: Add project root to the Python path
+# This allows 'from src.module' imports to work correctly
+project_root = os.path.dirname(os.path.abspath(__file__))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 from src.logging_config import setup_logging
 from src.metrics.helpers.pull_model import pull_model_info, UrlType, get_url_type
 from src.orchestrator import calculate_all_metrics
@@ -13,6 +20,7 @@ app = typer.Typer()
 @app.command()
 def install():
     """Install dependencies in userland."""
+    # ... (rest of the function is unchanged)
     import subprocess
 
     try:
@@ -29,6 +37,7 @@ def install():
 @app.command()
 def test():
     """Run tests and print coverage summary."""
+    # ... (rest of the function is unchanged)
     import subprocess
     import re
 
@@ -84,6 +93,7 @@ def main_command(url_file: str = typer.Argument(..., help="Path to file with URL
     Process a file of URLs and evaluate models, printing scores as NDJSON.
     This is the main entry point for URL processing.
     """
+    # ... (rest of the function is unchanged)
     setup_logging()
     logging.info(f"Starting processing for URL file: {url_file}")
 
@@ -134,7 +144,7 @@ if __name__ == "__main__":
     # This check ensures that if 'run' is called with arguments,
     # Typer handles it correctly.
     if len(sys.argv) > 1 and sys.argv[1] not in ["install", "test"]:
-         # Re-invoking with the 'main' command for Typer
-         sys.argv.insert(1, "main")
+        # Re-invoking with the 'main' command for Typer
+        sys.argv.insert(1, "main")
 
     app()

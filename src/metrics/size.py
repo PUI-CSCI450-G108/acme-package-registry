@@ -2,7 +2,7 @@ import math
 import os
 from typing import Any, Dict
 
-import helpers.pull_model as pull_model
+from src.metrics.helpers.pull_model import pull_model_info, UrlType
 from huggingface_hub import hf_hub_download
 
 

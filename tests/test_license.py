@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import patch
 
-from src.license import compute_license_metric
+from src.metrics.license import compute_license_metric
 
 class MockModelInfo:
     def __init__(self, repo_id, cardData=None):

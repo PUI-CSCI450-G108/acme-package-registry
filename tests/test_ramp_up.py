@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch, mock_open
-from src.ramp_up import compute_ramp_up_metric
+from src.metrics.ramp_up import compute_ramp_up_metric
 
 # Mock model_info object for testing
 class MockModelInfo:
