@@ -4,7 +4,6 @@ import types
 
 import pytest
 
-
 # Ensure the project's src directory is importable
 CURRENT_DIR = os.path.dirname(__file__)
 SRC_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "..", "src"))
@@ -54,15 +53,18 @@ class FakeHfApi:
     def __init__(self) -> None:
         self.calls = []
 
-    def dataset_info(self, name: str):
+    # FIX: Add **kwargs to accept extra arguments
+    def dataset_info(self, name: str, **kwargs):
         self.calls.append(("dataset_info", name))
         return {"type": "dataset", "name": name}
 
-    def model_info(self, name: str):
+    # FIX: Add **kwargs to accept extra arguments
+    def model_info(self, name: str, **kwargs):
         self.calls.append(("model_info", name))
         return {"type": "model", "name": name}
 
-    def space_info(self, name: str):
+    # FIX: Add **kwargs to accept extra arguments
+    def space_info(self, name: str, **kwargs):
         self.calls.append(("space_info", name))
         return {"type": "space", "name": name}
 

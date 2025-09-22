@@ -1,8 +1,10 @@
-from typing import Any, Dict
-import os
-from huggingface_hub import hf_hub_download
-import helpers.pull_model as pull_model
 import math
+import os
+from typing import Any, Dict
+
+from src.metrics.helpers.pull_model import pull_model_info, UrlType
+from huggingface_hub import hf_hub_download
+
 
 def logistic_scale(x: float) -> float:
 
@@ -62,7 +64,9 @@ def _bytes_from_repo_files(model_info: Any) -> int | None:
         else:
             # Fallback: get accurate size by downloading the file
             try:
-                local_path = hf_hub_download(model_info.id, rfilename, revision=model_info.sha)
+                local_path = hf_hub_download(
+                    model_info.id, rfilename, revision=model_info.sha
+                )
                 total_bytes += os.path.getsize(local_path)
             except Exception:
                 # Ignore individual file failures; continue with what we have
@@ -208,7 +212,7 @@ def compute_size_metric(model_info: Any) -> dict:
     if total_bytes is None or total_bytes <= 0:
         return {device: 0.0 for device in device_capacity_gb}
 
-    total_gb = total_bytes / (1024 ** 3)
+    total_gb = total_bytes / (1024**3)
 
     # Score = max(0, 1 - (size / capacity)) per device
     scores: Dict[str, float] = {}
@@ -217,6 +221,7 @@ def compute_size_metric(model_info: Any) -> dict:
         scores[device] = round(raw_score if raw_score > 0 else 0.0, 4)
 
     return scores
+
 
 # test cases
 # if __name__ == "__main__":
@@ -228,5 +233,3 @@ def compute_size_metric(model_info: Any) -> dict:
 
 #     info = pull_model.pull_model_info("https://huggingface.co/spaces/gradio/hello_world")
 #     print("spaces/gradio/hello_world:" + str(compute_size_metric(info) ))
-
-
