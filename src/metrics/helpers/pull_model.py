@@ -5,7 +5,6 @@ from huggingface_hub import HfApi
 
 
 # Define enum for url types
-# Define enum for url types
 class UrlType(Enum):
     HUGGING_FACE_MODEL = "hugging_face_model"
     HUGGING_FACE_DATASET = "hugging_face_dataset"
