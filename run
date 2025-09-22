@@ -1,45 +1,56 @@
 #!/usr/bin/env python3
 import os
 import sys
+import subprocess
 import typer
 from src.logging_config import setup_logging
 
-app = typer.Typer()
+app = typer.Typer(add_completion=False)
+
+
+# if the first CLI arg is an existing file, dispatch to process_cmd before Typer parses commands
+# This allows `./run URL_FILE` to work.
+def _dispatch_file_arg():
+    if len(sys.argv) >= 2:
+        first = sys.argv[1]
+        if os.path.isabs(first):
+            candidate = first
+        else:
+            candidate = os.path.join(os.getcwd(), first)
+        if os.path.exists(candidate) and os.path.isfile(candidate):
+            process_cmd(candidate)
 
 @app.command()
 def install():
-    """Install dependencies in userland."""
-    import subprocess
     try:
         subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--user', '-r', 'requirements.txt'])
-        raise typer.Exit(0)
-    except Exception as e:
-        print(f"Install failed: {e}", file=sys.stderr)
+    except subprocess.CalledProcessError as e:
+        typer.echo(f"Install failed: {e}", err=True)
         raise typer.Exit(1)
+    raise typer.Exit(0)
+
 
 @app.command()
 def test():
-    """Run tests and print coverage summary."""
-    import subprocess
     try:
-        result = subprocess.run([sys.executable, '-m', 'pytest', '--cov=src', '--cov-report=term-missing'], capture_output=True, text=True)
-        print(result.stdout)
-        if result.returncode == 0:
-            raise typer.Exit(0)
-        else:
-            print(result.stderr, file=sys.stderr)
-            raise typer.Exit(1)
+        result = subprocess.run([sys.executable, '-m', 'pytest', '--cov=src', '--cov-report=term-missing'])
+        raise typer.Exit(result.returncode)
     except Exception as e:
-        print(f"Test failed: {e}", file=sys.stderr)
+        typer.echo(f"Test failed: {e}", err=True)
         raise typer.Exit(1)
 
-@app.command()
-def main(url_file: str = typer.Argument(..., help="Path to file with URLs")):
-    """Process a file of URLs and evaluate models."""
+
+@app.command(name='process')
+def process_cmd(url_file: str = typer.Argument(..., help='Path to file with URLs')):
     setup_logging()
-    # TODO: Implement main logic
+    # TODO: Implement orchestration logic
     print(f"Processing {url_file}")
     raise typer.Exit(0)
 
-if __name__ == "__main__":
+
+# dispatch to `process_cmd` for standalone URL_FILE is handled by the `_dispatch_file_arg()` pre-check above. We keep commands simple.
+_dispatch_file_arg()
+
+
+if __name__ == '__main__':
     app()
