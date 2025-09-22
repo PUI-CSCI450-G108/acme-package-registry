@@ -28,11 +28,7 @@ validators_stub.url = _is_valid_url
 sys.modules["validators"] = validators_stub
 
 
-from metrics.helpers.pull_model import (  # noqa: E402
-    UrlType,
-    get_url_type,
-    pull_model_info,
-)
+from metrics.helpers.pull_model import UrlType, get_url_type, pull_model_info  # noqa: E402
 
 
 @pytest.mark.parametrize(
@@ -57,15 +53,18 @@ class FakeHfApi:
     def __init__(self) -> None:
         self.calls = []
 
-    def dataset_info(self, name: str):
+    # FIX: Add **kwargs to accept extra arguments
+    def dataset_info(self, name: str, **kwargs):
         self.calls.append(("dataset_info", name))
         return {"type": "dataset", "name": name}
 
-    def model_info(self, name: str):
+    # FIX: Add **kwargs to accept extra arguments
+    def model_info(self, name: str, **kwargs):
         self.calls.append(("model_info", name))
         return {"type": "model", "name": name}
 
-    def space_info(self, name: str):
+    # FIX: Add **kwargs to accept extra arguments
+    def space_info(self, name: str, **kwargs):
         self.calls.append(("space_info", name))
         return {"type": "space", "name": name}
 
@@ -75,7 +74,9 @@ def test_pull_model_info_for_model(monkeypatch: pytest.MonkeyPatch) -> None:
     url = "https://huggingface.co/owner/repo"
 
     fake = FakeHfApi()
-    monkeypatch.setattr("metrics.helpers.pull_model.HfApi", lambda: fake, raising=True)
+    monkeypatch.setattr(
+        "metrics.helpers.pull_model.HfApi", lambda: fake, raising=True
+    )
 
     result = pull_model_info(url)
     assert result == {"type": "model", "name": "owner/repo"}
@@ -85,7 +86,9 @@ def test_pull_model_info_for_dataset(monkeypatch: pytest.MonkeyPatch) -> None:
     url = "https://huggingface.co/datasets/owner/repo"
 
     fake = FakeHfApi()
-    monkeypatch.setattr("metrics.helpers.pull_model.HfApi", lambda: fake, raising=True)
+    monkeypatch.setattr(
+        "metrics.helpers.pull_model.HfApi", lambda: fake, raising=True
+    )
 
     result = pull_model_info(url)
     assert result == {"type": "dataset", "name": "owner/repo"}
@@ -95,19 +98,21 @@ def test_pull_model_info_for_space(monkeypatch: pytest.MonkeyPatch) -> None:
     url = "https://huggingface.co/spaces/owner/repo"
 
     fake = FakeHfApi()
-    monkeypatch.setattr("metrics.helpers.pull_model.HfApi", lambda: fake, raising=True)
+    monkeypatch.setattr(
+        "metrics.helpers.pull_model.HfApi", lambda: fake, raising=True
+    )
 
     result = pull_model_info(url)
     assert result == {"type": "space", "name": "owner/repo"}
 
 
-def test_pull_model_info_for_git_repo_returns_none(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_pull_model_info_for_git_repo_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
     url = "https://github.com/org/repo"
 
     fake = FakeHfApi()
-    monkeypatch.setattr("metrics.helpers.pull_model.HfApi", lambda: fake, raising=True)
+    monkeypatch.setattr(
+        "metrics.helpers.pull_model.HfApi", lambda: fake, raising=True
+    )
 
     result = pull_model_info(url)
     assert result is None
@@ -125,3 +130,4 @@ def test_pull_model_info_invalid_url_raises() -> None:
     with pytest.raises(ValueError) as exc:
         pull_model_info(url)
     assert str(exc.value) == f"Invalid URL: {url}"
+
