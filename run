@@ -1,99 +1,85 @@
 #!/usr/bin/env python3
 import os
 import sys
-import typer
+import re
+import subprocess
 import logging
-
-# FIX: Add project root to the Python path
-# This allows 'from src.module' imports to work correctly
-project_root = os.path.dirname(os.path.abspath(__file__))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+import typer
 
 from src.logging_config import setup_logging
 from src.metrics.helpers.pull_model import pull_model_info, UrlType, get_url_type
 from src.orchestrator import calculate_all_metrics
 
-app = typer.Typer()
+app = typer.Typer(add_completion=False)
 
+# --- Setup Python path for module resolution ---
+project_root = os.path.dirname(os.path.abspath(__file__))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+# --- CLI File Dispatch ---
+def _dispatch_file_arg():
+    """If user runs script with a path (e.g., ./run urls.txt), auto-dispatch to process()."""
+    if len(sys.argv) >= 2:
+        first = sys.argv[1]
+        candidate = first if os.path.isabs(first) else os.path.join(os.getcwd(), first)
+        if os.path.isfile(candidate):
+            sys.argv = [sys.argv[0], "process", candidate]
+
+
+# --- Commands ---
 
 @app.command()
 def install():
-    """Install dependencies in userland."""
-    # ... (rest of the function is unchanged)
-    import subprocess
-
+    """Install Python dependencies from requirements.txt."""
     try:
-        subprocess.check_call(
-            [sys.executable, "-m", "pip", "install", "--user", "-r", "requirements.txt"]
-        )
-        print("Dependencies installed successfully.")
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--user', '-r', 'requirements.txt'])
+        typer.echo("Dependencies installed successfully.")
         raise typer.Exit(0)
-    except Exception as e:
-        print(f"Install failed: {e}", file=sys.stderr)
+    except subprocess.CalledProcessError as e:
+        typer.echo(f"Install failed: {e}", err=True)
         raise typer.Exit(1)
 
 
 @app.command()
 def test():
-    """Run tests and print coverage summary."""
-    # ... (rest of the function is unchanged)
-    import subprocess
-    import re
-
+    """Run pytest and report results with test count and coverage."""
     try:
-        # Run pytest and capture output
         result = subprocess.run(
-            [sys.executable, "-m", "pytest", "--cov=src"],
+            [sys.executable, "-m", "pytest", "--cov=src", "--cov-report=term-missing"],
             capture_output=True,
             text=True,
         )
 
-        # Print stdout and stderr for debugging
+        # Print test output
         if result.stdout:
             print(result.stdout)
         if result.stderr:
             print(result.stderr, file=sys.stderr)
 
-        # Manually construct the final output line based on pytest results
-        total_tests = 0
-        passed_tests = 0
-        coverage_percent = 0
+        # Parse test summary
+        passed = total = coverage = 0
 
-        # Regex to find the test summary line, e.g., "==== 8 passed in 0.05s ===="
-        summary_match = re.search(r"==== ((\d+) passed)?.* in .*s ====", result.stdout)
+        summary_match = re.search(r"=+ (\d+) passed.*? in .*s =+", result.stdout)
         if summary_match:
-            passed_tests = int(summary_match.group(2)) if summary_match.group(2) else 0
-            # A simple way to get total, assuming all tests run. A more robust way might be needed.
-            # For now, let's assume if some pass, they all ran.
-            # A better approach would be to count "passed", "failed", "skipped", etc.
-            total_tests = passed_tests # This is an approximation.
+            passed = int(summary_match.group(1))
+            total = passed  # Estimate (no failures/skips parsing here)
 
-        # Regex to find the coverage total line, e.g., "TOTAL 55 2 96%"
         coverage_match = re.search(r"^TOTAL\s+\d+\s+\d+\s+(\d+)%$", result.stdout, re.MULTILINE)
         if coverage_match:
-            coverage_percent = int(coverage_match.group(1))
+            coverage = int(coverage_match.group(1))
 
-        # The autograder expects a specific output format
-        print(f"{passed_tests}/{total_tests} test cases passed. {coverage_percent}% line coverage achieved.")
-
-        if result.returncode == 0:
-            raise typer.Exit(0)
-        else:
-            raise typer.Exit(1)
+        print(f"{passed}/{total} test cases passed. {coverage}% line coverage achieved.")
+        raise typer.Exit(result.returncode)
 
     except Exception as e:
-        print(f"Test command failed: {e}", file=sys.stderr)
+        typer.echo(f"Test failed: {e}", err=True)
         raise typer.Exit(1)
 
 
-@app.command(name="main")
-def main_command(url_file: str = typer.Argument(..., help="Path to file with URLs")):
-    """
-    Process a file of URLs and evaluate models, printing scores as NDJSON.
-    This is the main entry point for URL processing.
-    """
-    # ... (rest of the function is unchanged)
+@app.command(name="process")
+def process_cmd(url_file: str = typer.Argument(..., help="Path to file with URLs")):
+    """Process a file of URLs and evaluate models, printing scores as NDJSON."""
     setup_logging()
     logging.info(f"Starting processing for URL file: {url_file}")
 
@@ -101,50 +87,43 @@ def main_command(url_file: str = typer.Argument(..., help="Path to file with URL
         with open(url_file, "r") as f:
             urls = [line.strip() for line in f if line.strip()]
     except FileNotFoundError:
-        print(f"Error: URL file not found at {url_file}", file=sys.stderr)
         logging.error(f"URL file not found: {url_file}")
+        typer.echo(f"Error: URL file not found at {url_file}", err=True)
         raise typer.Exit(1)
     except Exception as e:
-        print(f"Error reading URL file: {e}", file=sys.stderr)
         logging.error(f"Error reading URL file {url_file}: {e}")
+        typer.echo(f"Error reading URL file: {e}", err=True)
         raise typer.Exit(1)
 
     for url in urls:
         logging.info(f"Processing URL: {url}")
         url_type = get_url_type(url)
 
-        # Per spec, only produce output for model URLs
         if url_type != UrlType.HUGGING_FACE_MODEL:
-            logging.warning(
-                f"Skipping non-model URL: {url} (type: {url_type.name})"
-            )
+            logging.warning(f"Skipping non-model URL: {url} (type: {url_type.name})")
             continue
 
         try:
             model_info = pull_model_info(url)
             if model_info:
-                # Orchestrate all metric calculations and get the final NDJSON string
                 ndjson_output = calculate_all_metrics(model_info, url)
-                print(ndjson_output)  # Print the final output to stdout
+                print(ndjson_output)
             else:
                 logging.warning(f"Could not retrieve info for model URL: {url}")
-
         except ValueError as ve:
-            print(f"Error processing URL {url}: {ve}", file=sys.stderr)
             logging.error(f"Value error for URL {url}: {ve}")
+            typer.echo(f"Error processing URL {url}: {ve}", err=True)
         except Exception as e:
-            print(f"An unexpected error occurred for URL {url}: {e}", file=sys.stderr)
             logging.error(f"Unexpected error for URL {url}: {e}", exc_info=True)
+            typer.echo(f"Unexpected error for URL {url}: {e}", err=True)
 
     logging.info("Finished processing all URLs.")
     raise typer.Exit(0)
 
 
-if __name__ == "__main__":
-    # This check ensures that if 'run' is called with arguments,
-    # Typer handles it correctly.
-    if len(sys.argv) > 1 and sys.argv[1] not in ["install", "test"]:
-        # Re-invoking with the 'main' command for Typer
-        sys.argv.insert(1, "main")
+# --- Entry Point ---
 
+_dispatch_file_arg()
+
+if __name__ == "__main__":
     app()
