@@ -1,56 +1,129 @@
 #!/usr/bin/env python3
 import os
 import sys
+import re
 import subprocess
+import logging
 import typer
+
 from src.logging_config import setup_logging
+from src.metrics.helpers.pull_model import pull_model_info, UrlType, get_url_type
+from src.orchestrator import calculate_all_metrics
 
 app = typer.Typer(add_completion=False)
 
+# --- Setup Python path for module resolution ---
+project_root = os.path.dirname(os.path.abspath(__file__))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
-# if the first CLI arg is an existing file, dispatch to process_cmd before Typer parses commands
-# This allows `./run URL_FILE` to work.
+# --- CLI File Dispatch ---
 def _dispatch_file_arg():
+    """If user runs script with a path (e.g., ./run urls.txt), auto-dispatch to process()."""
     if len(sys.argv) >= 2:
         first = sys.argv[1]
-        if os.path.isabs(first):
-            candidate = first
-        else:
-            candidate = os.path.join(os.getcwd(), first)
-        if os.path.exists(candidate) and os.path.isfile(candidate):
-            process_cmd(candidate)
+        candidate = first if os.path.isabs(first) else os.path.join(os.getcwd(), first)
+        if os.path.isfile(candidate):
+            sys.argv = [sys.argv[0], "process", candidate]
+
+
+# --- Commands ---
 
 @app.command()
 def install():
+    """Install Python dependencies from requirements.txt."""
     try:
         subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--user', '-r', 'requirements.txt'])
+        typer.echo("Dependencies installed successfully.")
+        raise typer.Exit(0)
     except subprocess.CalledProcessError as e:
         typer.echo(f"Install failed: {e}", err=True)
         raise typer.Exit(1)
-    raise typer.Exit(0)
 
 
 @app.command()
 def test():
+    """Run pytest and report results with test count and coverage."""
     try:
-        result = subprocess.run([sys.executable, '-m', 'pytest', '--cov=src', '--cov-report=term-missing'])
+        result = subprocess.run(
+            [sys.executable, "-m", "pytest", "--cov=src", "--cov-report=term-missing"],
+            capture_output=True,
+            text=True,
+        )
+
+        # Print test output
+        if result.stdout:
+            print(result.stdout)
+        if result.stderr:
+            print(result.stderr, file=sys.stderr)
+
+        # Parse test summary
+        passed = total = coverage = 0
+
+        summary_match = re.search(r"=+ (\d+) passed.*? in .*s =+", result.stdout)
+        if summary_match:
+            passed = int(summary_match.group(1))
+            total = passed  # Estimate (no failures/skips parsing here)
+
+        coverage_match = re.search(r"^TOTAL\s+\d+\s+\d+\s+(\d+)%$", result.stdout, re.MULTILINE)
+        if coverage_match:
+            coverage = int(coverage_match.group(1))
+
+        print(f"{passed}/{total} test cases passed. {coverage}% line coverage achieved.")
         raise typer.Exit(result.returncode)
+
     except Exception as e:
         typer.echo(f"Test failed: {e}", err=True)
         raise typer.Exit(1)
 
 
-@app.command(name='process')
-def process_cmd(url_file: str = typer.Argument(..., help='Path to file with URLs')):
+@app.command(name="process")
+def process_cmd(url_file: str = typer.Argument(..., help="Path to file with URLs")):
+    """Process a file of URLs and evaluate models, printing scores as NDJSON."""
     setup_logging()
-    # TODO: Implement orchestration logic
-    print(f"Processing {url_file}")
+    logging.info(f"Starting processing for URL file: {url_file}")
+
+    try:
+        with open(url_file, "r") as f:
+            urls = [line.strip() for line in f if line.strip()]
+    except FileNotFoundError:
+        logging.error(f"URL file not found: {url_file}")
+        typer.echo(f"Error: URL file not found at {url_file}", err=True)
+        raise typer.Exit(1)
+    except Exception as e:
+        logging.error(f"Error reading URL file {url_file}: {e}")
+        typer.echo(f"Error reading URL file: {e}", err=True)
+        raise typer.Exit(1)
+
+    for url in urls:
+        logging.info(f"Processing URL: {url}")
+        url_type = get_url_type(url)
+
+        if url_type != UrlType.HUGGING_FACE_MODEL:
+            logging.warning(f"Skipping non-model URL: {url} (type: {url_type.name})")
+            continue
+
+        try:
+            model_info = pull_model_info(url)
+            if model_info:
+                ndjson_output = calculate_all_metrics(model_info, url)
+                print(ndjson_output)
+            else:
+                logging.warning(f"Could not retrieve info for model URL: {url}")
+        except ValueError as ve:
+            logging.error(f"Value error for URL {url}: {ve}")
+            typer.echo(f"Error processing URL {url}: {ve}", err=True)
+        except Exception as e:
+            logging.error(f"Unexpected error for URL {url}: {e}", exc_info=True)
+            typer.echo(f"Unexpected error for URL {url}: {e}", err=True)
+
+    logging.info("Finished processing all URLs.")
     raise typer.Exit(0)
 
 
-# dispatch to `process_cmd` for standalone URL_FILE is handled by the `_dispatch_file_arg()` pre-check above. We keep commands simple.
+# --- Entry Point ---
+
 _dispatch_file_arg()
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     app()

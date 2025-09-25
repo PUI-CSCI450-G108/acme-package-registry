@@ -1,6 +1,7 @@
 import logging
 import os
 
+
 def setup_logging():
     log_file = os.environ.get("LOG_FILE", "acme.log")
     log_level = int(os.environ.get("LOG_LEVEL", "0"))
@@ -14,5 +15,5 @@ def setup_logging():
         filename=log_file,
         filemode="a",
         level=level,
-        format="%(asctime)s %(levelname)s %(message)s"
+        format="%(asctime)s %(levelname)s %(message)s",
     )
