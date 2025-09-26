@@ -1,7 +1,13 @@
 from enum import Enum
+from typing import Optional, Any
 
 import validators
-from huggingface_hub import HfApi
+
+try:
+    # Prefer central wrapper
+    from src.hf_api import HuggingFaceAPI  # type: ignore
+except Exception:  # pragma: no cover - fallback path for tests manipulating sys.path
+    from hf_api import HuggingFaceAPI  # type: ignore
 
 
 # Define enum for url types
@@ -14,50 +20,58 @@ class UrlType(Enum):
     INVALID = "invalid"
 
 
-def pull_model_info(url: str) -> dict:
-    # This is the fix: instantiate HfApi inside the function
-    hf_api = HfApi()
+_hf_client: Optional[HuggingFaceAPI] = None
 
+
+def _get_client() -> HuggingFaceAPI:
+    global _hf_client
+    if _hf_client is None:
+        _hf_client = HuggingFaceAPI()
+    return _hf_client
+
+
+def pull_model_info(url: str) -> Any:
+    """Return rich info dict / object for a HF resource.
+
+    Returns None for plain git repos (deferred cloning handled elsewhere).
+    Raises ValueError on invalid / unsupported URLs.
+    """
+    client = _get_client()
     url_type = get_url_type(url)
-    if url_type == UrlType.INVALID:
-        raise ValueError("Invalid URL: " + url)
 
+    if url_type == UrlType.INVALID:
+        raise ValueError(f"Invalid URL: {url}")
+
+    if url_type == UrlType.GIT_REPO:
+        # Defer cloning / git-based metrics to another component
+        return None
+
+    if url_type == UrlType.OTHER:
+        raise ValueError(f"Other URL type: {url}")
+
+    # Extract the canonical repo id
     if url_type == UrlType.HUGGING_FACE_DATASET:
         name = url.split("/datasets/")[1]
-        info = hf_api.dataset_info(name, files_metadata=True)
-    elif url_type == UrlType.HUGGING_FACE_MODEL:
-        name = url.split("huggingface.co/")[1]
-        info = hf_api.model_info(name, files_metadata=True)
-    elif url_type == UrlType.HUGGING_FACE_CODEBASE:
+        return client.get_dataset_info(name)
+    if url_type == UrlType.HUGGING_FACE_CODEBASE:
         name = url.split("/spaces/")[1]
-        info = hf_api.space_info(name, files_metadata=True)
-    elif url_type == UrlType.GIT_REPO:
-        return None
-    elif url_type == UrlType.OTHER:
-        raise ValueError("Other URL type: " + url)
-    else:
-        # Should be unreachable, but good practice
-        raise ValueError(f"Unhandled URL type: {url_type.name}")
-
-    return info
+        # space_info not wrapped yet; fall back to underlying api attr
+        return client.api.space_info(name, files_metadata=True)  # type: ignore[attr-defined]
+    # Default: model
+    name = url.split("huggingface.co/")[1]
+    return client.get_model_info(name)
 
 
 # Parses the url and returns the type of the url
-def get_url_type(url: str) -> str:
+def get_url_type(url: str) -> UrlType:
     if not validators.url(url):
         return UrlType.INVALID
-
     if url.startswith("https://github.com/"):
         return UrlType.GIT_REPO
-
     if not url.startswith("https://huggingface.co/"):
         return UrlType.OTHER
-
     if "/datasets/" in url:
         return UrlType.HUGGING_FACE_DATASET
-
     if "/spaces/" in url:
         return UrlType.HUGGING_FACE_CODEBASE
-
-    # Default to model if it's on huggingface.co and not a dataset/space
     return UrlType.HUGGING_FACE_MODEL

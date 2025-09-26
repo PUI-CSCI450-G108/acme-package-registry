@@ -50,70 +50,64 @@ def test_get_url_type(url: str, expected: UrlType) -> None:
 
 
 class FakeHfApi:
+    """A fake HuggingFace client that mimics both the public wrapper methods
+    and the underlying .api attribute used by pull_model_info.
+    """
     def __init__(self) -> None:
         self.calls = []
+        # Expose self as `.api` so code can call `client.api.space_info` etc.
+        self.api = self
 
-    # FIX: Add **kwargs to accept extra arguments
+    # Core info methods (accept **kwargs because real API does)
     def dataset_info(self, name: str, **kwargs):
         self.calls.append(("dataset_info", name))
         return {"type": "dataset", "name": name}
 
-    # FIX: Add **kwargs to accept extra arguments
     def model_info(self, name: str, **kwargs):
         self.calls.append(("model_info", name))
         return {"type": "model", "name": name}
 
-    # FIX: Add **kwargs to accept extra arguments
     def space_info(self, name: str, **kwargs):
         self.calls.append(("space_info", name))
         return {"type": "space", "name": name}
 
+    # Wrapper-like methods so patched _get_client() returning this object
+    # still satisfies calls to get_model_info / get_dataset_info
+    def get_model_info(self, name: str):  # mirror HuggingFaceAPI
+        return self.model_info(name)
 
-def test_pull_model_info_for_model(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Use a two-segment model URL so the helper's split logic works
-    url = "https://huggingface.co/owner/repo"
+    def get_dataset_info(self, name: str):  # mirror HuggingFaceAPI
+        return self.dataset_info(name)
 
+
+@pytest.fixture
+def fake_client(monkeypatch: pytest.MonkeyPatch) -> FakeHfApi:
+    """Provide a single patched fake client for tests that need network isolation."""
     fake = FakeHfApi()
-    monkeypatch.setattr(
-        "metrics.helpers.pull_model.HfApi", lambda: fake, raising=True
-    )
+    monkeypatch.setattr("metrics.helpers.pull_model._get_client", lambda: fake, raising=True)
+    return fake
 
+
+def test_pull_model_info_for_model(fake_client: FakeHfApi) -> None:
+    url = "https://huggingface.co/owner/repo"
     result = pull_model_info(url)
     assert result == {"type": "model", "name": "owner/repo"}
 
 
-def test_pull_model_info_for_dataset(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_pull_model_info_for_dataset(fake_client: FakeHfApi) -> None:
     url = "https://huggingface.co/datasets/owner/repo"
-
-    fake = FakeHfApi()
-    monkeypatch.setattr(
-        "metrics.helpers.pull_model.HfApi", lambda: fake, raising=True
-    )
-
     result = pull_model_info(url)
     assert result == {"type": "dataset", "name": "owner/repo"}
 
 
-def test_pull_model_info_for_space(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_pull_model_info_for_space(fake_client: FakeHfApi) -> None:
     url = "https://huggingface.co/spaces/owner/repo"
-
-    fake = FakeHfApi()
-    monkeypatch.setattr(
-        "metrics.helpers.pull_model.HfApi", lambda: fake, raising=True
-    )
-
     result = pull_model_info(url)
     assert result == {"type": "space", "name": "owner/repo"}
 
 
-def test_pull_model_info_for_git_repo_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_pull_model_info_for_git_repo_returns_none(fake_client: FakeHfApi) -> None:
     url = "https://github.com/org/repo"
-
-    fake = FakeHfApi()
-    monkeypatch.setattr(
-        "metrics.helpers.pull_model.HfApi", lambda: fake, raising=True
-    )
-
     result = pull_model_info(url)
     assert result is None
 

@@ -12,7 +12,7 @@ def mock_model_info():
     """Provides a mock model_info object."""
     return MockModelInfo("mock/repo")
 
-@patch("src.ramp_up.hf_hub_download")
+@patch("src.metrics.ramp_up.hf_hub_download")
 @patch("builtins.open", new_callable=mock_open)
 def test_ramp_up_ideal_word_count(mock_file, mock_download, mock_model_info):
     """
@@ -25,12 +25,12 @@ def test_ramp_up_ideal_word_count(mock_file, mock_download, mock_model_info):
     mock_download.return_value = "dummy/path/README.md"
 
     # The mock for fs.ls() needs to return a list containing a readme
-    with patch("src.ramp_up.HfFileSystem") as mock_fs:
+    with patch("src.metrics.ramp_up.HfFileSystem") as mock_fs:
         mock_fs.return_value.ls.return_value = ["mock/repo/README.md"]
         score = compute_ramp_up_metric(mock_model_info)
         assert score == pytest.approx(1.0)
 
-@patch("src.ramp_up.hf_hub_download")
+@patch("src.metrics.ramp_up.hf_hub_download")
 @patch("builtins.open", new_callable=mock_open)
 def test_ramp_up_very_short_readme(mock_file, mock_download, mock_model_info):
     """
@@ -41,12 +41,12 @@ def test_ramp_up_very_short_readme(mock_file, mock_download, mock_model_info):
     mock_file.return_value.read.return_value = short_readme
     mock_download.return_value = "dummy/path/README.md"
 
-    with patch("src.ramp_up.HfFileSystem") as mock_fs:
+    with patch("src.metrics.ramp_up.HfFileSystem") as mock_fs:
         mock_fs.return_value.ls.return_value = ["mock/repo/README.md"]
         score = compute_ramp_up_metric(mock_model_info)
         assert score < 0.2
 
-@patch("src.ramp_up.HfFileSystem")
+@patch("src.metrics.ramp_up.HfFileSystem")
 def test_ramp_up_no_readme(mock_fs, mock_model_info):
     """
     Tests the ramp-up score when no README file is found.

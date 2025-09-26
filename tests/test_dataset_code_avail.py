@@ -13,7 +13,7 @@ class MockModelInfo:
         self.cardData = cardData if cardData is not None else {}
         self.siblings = siblings if siblings is not None else []
 
-@patch("src.dataset_code_avail._fetch_readme_content")
+@patch("src.metrics.dataset_code_avail._fetch_readme_content")
 def test_both_dataset_and_code_exist(mock_fetch):
     """Score should be 1.0 if dataset is in cardData and .py file exists."""
     mock_fetch.return_value = "Some readme content."
@@ -25,7 +25,7 @@ def test_both_dataset_and_code_exist(mock_fetch):
     score = compute_dataset_code_avail_metric(model_info)
     assert score == 1.0
 
-@patch("src.dataset_code_avail._fetch_readme_content")
+@patch("src.metrics.dataset_code_avail._fetch_readme_content")
 def test_dataset_from_readme_and_code_from_ipynb(mock_fetch):
     """Score should be 1.0 if dataset is in README and .ipynb file exists."""
     mock_fetch.return_value = "This model was trained on the xyz dataset."
@@ -36,7 +36,7 @@ def test_dataset_from_readme_and_code_from_ipynb(mock_fetch):
     score = compute_dataset_code_avail_metric(model_info)
     assert score == 1.0
 
-@patch("src.dataset_code_avail._fetch_readme_content")
+@patch("src.metrics.dataset_code_avail._fetch_readme_content")
 def test_only_dataset_available(mock_fetch):
     """Score should be 0.5 if only dataset is mentioned in cardData."""
     mock_fetch.return_value = "Some readme content."
@@ -47,7 +47,7 @@ def test_only_dataset_available(mock_fetch):
     score = compute_dataset_code_avail_metric(model_info)
     assert score == 0.5
 
-@patch("src.dataset_code_avail._fetch_readme_content")
+@patch("src.metrics.dataset_code_avail._fetch_readme_content")
 def test_only_code_available(mock_fetch):
     """Score should be 0.5 if only a notebook is present."""
     mock_fetch.return_value = "Some readme content."
@@ -58,7 +58,7 @@ def test_only_code_available(mock_fetch):
     score = compute_dataset_code_avail_metric(model_info)
     assert score == 0.5
 
-@patch("src.dataset_code_avail._fetch_readme_content")
+@patch("src.metrics.dataset_code_avail._fetch_readme_content")
 def test_neither_available(mock_fetch):
     """Score should be 0.0 if neither dataset nor code is found."""
     mock_fetch.return_value = "This is a model."
