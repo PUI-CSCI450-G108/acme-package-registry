@@ -1,4 +1,5 @@
 import math
+
 from src.net_score import calculate_net_score
 
 
@@ -54,7 +55,7 @@ def test_net_score_size_average():
     metrics = {
         "size_score": {"cpu": 0.0, "gpu": 1.0},  # average 0.5 -> weighted 0.05
         "ramp_up_time": 0.5,  # 0.075
-        "bus_factor": 0.5,    # 0.075
+        "bus_factor": 0.5,  # 0.075
         "dataset_and_code_score": 1.0,  # 0.15
         "dataset_quality": 0.0,  # 0.0
         "code_quality": 1.0,  # 0.15

@@ -2,8 +2,9 @@ import math
 import os
 from typing import Any, Dict
 
-from src.metrics.helpers.pull_model import pull_model_info, UrlType
 from huggingface_hub import hf_hub_download
+
+from src.metrics.helpers.pull_model import UrlType, pull_model_info
 
 
 def logistic_scale(x: float) -> float:
