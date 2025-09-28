@@ -1,5 +1,5 @@
-import time
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable, Dict, Tuple
 
@@ -12,8 +12,8 @@ from src.metrics.license import compute_license_metric
 from src.metrics.perf_claims import compute_perf_claims_metric
 from src.metrics.ramp_up import compute_ramp_up_metric
 from src.metrics.size import compute_size_metric
-from src.net_score import calculate_net_score
 from src.models import NDJsonOutput
+from src.net_score import calculate_net_score
 
 
 def _run_metric_with_timing(
@@ -27,7 +27,12 @@ def _run_metric_with_timing(
         logging.error(f"Metric function {metric_func.__name__} failed: {e}")
         result = 0.0  # Default to a failing score
         if "size" in metric_func.__name__:
-             result = {"raspberry_pi": 0.0, "jetson_nano": 0.0, "desktop_pc": 0.0, "aws_server": 0.0}
+            result = {
+                "raspberry_pi": 0.0,
+                "jetson_nano": 0.0,
+                "desktop_pc": 0.0,
+                "aws_server": 0.0,
+            }
 
     end_time = time.perf_counter()
     latency_ms = int((end_time - start_time) * 1000)
@@ -71,7 +76,12 @@ def calculate_all_metrics(model_info: Any, url: str) -> str:
                 results[metric_name] = 0.0
                 latencies[f"{metric_name}_latency"] = 0
                 if "size" in metric_name:
-                    results[metric_name] = {"raspberry_pi": 0.0, "jetson_nano": 0.0, "desktop_pc": 0.0, "aws_server": 0.0}
+                    results[metric_name] = {
+                        "raspberry_pi": 0.0,
+                        "jetson_nano": 0.0,
+                        "desktop_pc": 0.0,
+                        "aws_server": 0.0,
+                    }
 
     net_score, net_score_latency = calculate_net_score(results)
     results["net_score"] = net_score

@@ -1,16 +1,21 @@
+from unittest.mock import mock_open, patch
+
 import pytest
-from unittest.mock import patch, mock_open
+
 from src.metrics.ramp_up import compute_ramp_up_metric
+
 
 # Mock model_info object for testing
 class MockModelInfo:
     def __init__(self, repo_id):
         self.id = repo_id
 
+
 @pytest.fixture
 def mock_model_info():
     """Provides a mock model_info object."""
     return MockModelInfo("mock/repo")
+
 
 @patch("src.metrics.ramp_up.hf_hub_download")
 @patch("builtins.open", new_callable=mock_open)
@@ -30,6 +35,7 @@ def test_ramp_up_ideal_word_count(mock_file, mock_download, mock_model_info):
         score = compute_ramp_up_metric(mock_model_info)
         assert score == pytest.approx(1.0)
 
+
 @patch("src.metrics.ramp_up.hf_hub_download")
 @patch("builtins.open", new_callable=mock_open)
 def test_ramp_up_very_short_readme(mock_file, mock_download, mock_model_info):
@@ -45,6 +51,7 @@ def test_ramp_up_very_short_readme(mock_file, mock_download, mock_model_info):
         mock_fs.return_value.ls.return_value = ["mock/repo/README.md"]
         score = compute_ramp_up_metric(mock_model_info)
         assert score < 0.2
+
 
 @patch("src.metrics.ramp_up.HfFileSystem")
 def test_ramp_up_no_readme(mock_fs, mock_model_info):
