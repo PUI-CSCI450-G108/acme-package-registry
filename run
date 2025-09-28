@@ -4,6 +4,7 @@ import sys
 import re
 import subprocess
 import logging
+import csv
 import typer
 
 from src.logging_config import setup_logging
@@ -78,14 +79,23 @@ def test():
 
 
 @app.command(name="process")
-def process_cmd(url_file: str = typer.Argument(..., help="Path to file with URLs")):
-    """Process a file of URLs and evaluate models, printing scores as NDJSON."""
+def process_cmd(url_file: str = typer.Argument(..., help="Path to file with URLs (code_link,dataset_link,model_link per line)")):
+    """Process a file where each line has comma-separated links: code_link, dataset_link, model_link.
+
+    - code_link can be blank and is not processed (future use)
+    - dataset_link can be blank; when blank, we try to infer dataset(s) from the model card/README
+    - we maintain a run-scoped set of encountered dataset IDs and log when a model shares an already seen dataset
+    - only model_link rows are evaluated for metrics; NDJSON is printed per model
+    """
     setup_logging()
     logging.info(f"Starting processing for URL file: {url_file}")
 
+    encountered_datasets: set[str] = set()
+
     try:
-        with open(url_file, "r") as f:
-            urls = [line.strip() for line in f if line.strip()]
+        with open(url_file, "r", newline="") as f:
+            reader = csv.reader(f)
+            rows = [row for row in reader if row and any(cell.strip() for cell in row)]
     except FileNotFoundError:
         logging.error(f"URL file not found: {url_file}")
         typer.echo(f"Error: URL file not found at {url_file}", err=True)
@@ -95,27 +105,99 @@ def process_cmd(url_file: str = typer.Argument(..., help="Path to file with URLs
         typer.echo(f"Error reading URL file: {e}", err=True)
         raise typer.Exit(1)
 
-    for url in urls:
-        logging.info(f"Processing URL: {url}")
-        url_type = get_url_type(url)
+    for idx, raw in enumerate(rows, start=1):
+        # Normalize to 3 columns
+        code_link = raw[0].strip() if len(raw) > 0 else ""
+        dataset_link = raw[1].strip() if len(raw) > 1 else ""
+        model_link = raw[2].strip() if len(raw) > 2 else ""
 
-        if url_type != UrlType.HUGGING_FACE_MODEL:
-            logging.warning(f"Skipping non-model URL: {url} (type: {url_type.name})")
+        # Record dataset if explicitly provided
+        if dataset_link:
+            if get_url_type(dataset_link) == UrlType.HUGGING_FACE_DATASET:
+                try:
+                    dataset_id = dataset_link.split("/datasets/")[1].split("?")[0].split("#")[0]
+                    encountered_datasets.add(dataset_id)
+                    logging.info(f"[line {idx}] Registered dataset from link: {dataset_id}")
+                except Exception:
+                    logging.warning(f"[line {idx}] Could not parse dataset id from link: {dataset_link}")
+            else:
+                logging.warning(f"[line {idx}] Non-dataset URL provided in dataset column: {dataset_link}")
+
+        # Validate and process model link
+        if not model_link:
+            logging.warning(f"[line {idx}] Missing model link; skipping line.")
             continue
 
+        url_type = get_url_type(model_link)
+        if url_type != UrlType.HUGGING_FACE_MODEL:
+            logging.warning(f"[line {idx}] Skipping non-model URL in model column: {model_link} (type: {url_type.name})")
+            continue
+
+        logging.info(f"[line {idx}] Processing model: {model_link}")
+
         try:
-            model_info = pull_model_info(url)
-            if model_info:
-                ndjson_output = calculate_all_metrics(model_info, url)
-                print(ndjson_output)
-            else:
-                logging.warning(f"Could not retrieve info for model URL: {url}")
+            model_info = pull_model_info(model_link)
+            if not model_info:
+                logging.warning(f"[line {idx}] Could not retrieve info for model URL: {model_link}")
+                continue
+
+            # Infer datasets if none explicitly given on this line
+            inferred_shared = []
+            discovered = []
+            try:
+                # 1) Structured signal via model cardData
+                card = getattr(model_info, "cardData", None)
+                ds_list = []
+                if isinstance(card, dict):
+                    val = card.get("datasets")
+                    if isinstance(val, (list, tuple)):
+                        ds_list = [str(x) for x in val if x]
+                    elif isinstance(val, str):
+                        ds_list = [val]
+
+                # 2) Unstructured signal via README content
+                readme_ds: list[str] = []
+                try:
+                    from src.metrics.dataset_code_avail import _fetch_readme_content  # type: ignore
+                    readme_text = _fetch_readme_content(model_info) or ""
+                    # Find patterns like "/datasets/<org>/<name>" or "/datasets/<name>"
+                    pat = r"/datasets/([\w\-]+(?:/[\w\-]+)?)"
+                    readme_ds = re.findall(pat, readme_text)
+                except Exception:
+                    # README fetching may fail offline; that's fine
+                    readme_ds = []
+
+                all_candidates = []
+                # Maintain insertion order without duplicates
+                seen_tmp = set()
+                for ds in list(ds_list) + list(readme_ds):
+                    if ds and ds not in seen_tmp:
+                        all_candidates.append(ds)
+                        seen_tmp.add(ds)
+
+                for ds in all_candidates:
+                    if ds in encountered_datasets:
+                        inferred_shared.append(ds)
+                    else:
+                        encountered_datasets.add(ds)
+                        discovered.append(ds)
+
+                if inferred_shared:
+                    logging.info(f"[line {idx}] Model shares already encountered dataset(s): {', '.join(inferred_shared)}")
+                if discovered:
+                    logging.info(f"[line {idx}] Discovered new dataset(s) from README/card: {', '.join(discovered)}")
+            except Exception as infer_err:
+                logging.debug(f"[line {idx}] Dataset inference failed: {infer_err}")
+
+            # Compute and emit NDJSON for this model
+            ndjson_output = calculate_all_metrics(model_info, model_link)
+            print(ndjson_output)
         except ValueError as ve:
-            logging.error(f"Value error for URL {url}: {ve}")
-            typer.echo(f"Error processing URL {url}: {ve}", err=True)
+            logging.error(f"[line {idx}] Value error for model URL {model_link}: {ve}")
+            typer.echo(f"Error processing URL {model_link}: {ve}", err=True)
         except Exception as e:
-            logging.error(f"Unexpected error for URL {url}: {e}", exc_info=True)
-            typer.echo(f"Unexpected error for URL {url}: {e}", err=True)
+            logging.error(f"[line {idx}] Unexpected error for URL {model_link}: {e}", exc_info=True)
+            typer.echo(f"Unexpected error for URL {model_link}: {e}", err=True)
 
     logging.info("Finished processing all URLs.")
     raise typer.Exit(0)

@@ -1,14 +1,41 @@
 from src.metrics.code_quality import compute_code_quality_metric
 
 
-def test_code_quality_default_returns_one():
-    # Current implementation always returns 1.0
-    result = compute_code_quality_metric({})
-    assert result == 1.0
+class Sibling:
+    def __init__(self, name: str):
+        self.rfilename = name
 
 
-def test_code_quality_ignores_input_fields():
-    # Ensure extra fields do not change the constant score
-    dummy = {"files": ["a.py"], "issues": 42}
-    result = compute_code_quality_metric(dummy)
-    assert result == 1.0
+class DummyModel:
+    def __init__(self, rid: str, sibs=None):
+        self.id = rid
+        self.siblings = sibs or []
+
+
+def test_code_quality_good_docs_and_style(monkeypatch):
+    # README contains usage section, repo has pyproject.toml (style) and snake_case file
+    monkeypatch.setattr(
+        "src.metrics.dataset_code_avail._fetch_readme_content",
+        lambda m: "# Model\n\n## Usage\nRun this example...",
+    )
+    model = DummyModel("org/model", [Sibling("pyproject.toml"), Sibling("utils_helper.py")])
+    assert compute_code_quality_metric(model) == 1.0
+
+
+def test_code_quality_some_issues_returns_half(monkeypatch):
+    # No docs; code exists but not snake_case, no style files
+    monkeypatch.setattr(
+        "src.metrics.dataset_code_avail._fetch_readme_content",
+        lambda m: "",
+    )
+    model = DummyModel("org/model", [Sibling("main.py")])
+    assert compute_code_quality_metric(model) == 0.5
+
+
+def test_code_quality_no_docs_no_code_returns_zero(monkeypatch):
+    monkeypatch.setattr(
+        "src.metrics.dataset_code_avail._fetch_readme_content",
+        lambda m: "",
+    )
+    model = DummyModel("org/model", [])
+    assert compute_code_quality_metric(model) == 0.0
