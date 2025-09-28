@@ -28,7 +28,11 @@ validators_stub.url = _is_valid_url
 sys.modules["validators"] = validators_stub
 
 
-from metrics.helpers.pull_model import UrlType, get_url_type, pull_model_info  # noqa: E402
+from metrics.helpers.pull_model import (  # noqa: E402
+    UrlType,
+    get_url_type,
+    pull_model_info,
+)
 
 
 @pytest.mark.parametrize(
@@ -53,6 +57,7 @@ class FakeHfApi:
     """A fake HuggingFace client that mimics both the public wrapper methods
     and the underlying .api attribute used by pull_model_info.
     """
+
     def __init__(self) -> None:
         self.calls = []
         # Expose self as `.api` so code can call `client.api.space_info` etc.
@@ -84,7 +89,9 @@ class FakeHfApi:
 def fake_client(monkeypatch: pytest.MonkeyPatch) -> FakeHfApi:
     """Provide a single patched fake client for tests that need network isolation."""
     fake = FakeHfApi()
-    monkeypatch.setattr("metrics.helpers.pull_model._get_client", lambda: fake, raising=True)
+    monkeypatch.setattr(
+        "metrics.helpers.pull_model._get_client", lambda: fake, raising=True
+    )
     return fake
 
 
@@ -124,4 +131,3 @@ def test_pull_model_info_invalid_url_raises() -> None:
     with pytest.raises(ValueError) as exc:
         pull_model_info(url)
     assert str(exc.value) == f"Invalid URL: {url}"
-

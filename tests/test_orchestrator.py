@@ -18,10 +18,19 @@ def test_orchestrator_smoke(monkeypatch):
     monkeypatch.setattr("src.orchestrator.compute_license_metric", lambda m: 1.0)
     monkeypatch.setattr(
         "src.orchestrator.compute_size_metric",
-        lambda m: {"raspberry_pi": 0.2, "jetson_nano": 0.4, "desktop_pc": 0.8, "aws_server": 1.0},
+        lambda m: {
+            "raspberry_pi": 0.2,
+            "jetson_nano": 0.4,
+            "desktop_pc": 0.8,
+            "aws_server": 1.0,
+        },
     )
-    monkeypatch.setattr("src.orchestrator.compute_dataset_code_avail_metric", lambda m: 0.6)
-    monkeypatch.setattr("src.orchestrator.compute_dataset_quality_metric", lambda m: 0.7)
+    monkeypatch.setattr(
+        "src.orchestrator.compute_dataset_code_avail_metric", lambda m: 0.6
+    )
+    monkeypatch.setattr(
+        "src.orchestrator.compute_dataset_quality_metric", lambda m: 0.7
+    )
     monkeypatch.setattr("src.orchestrator.compute_code_quality_metric", lambda m: 0.9)
     monkeypatch.setattr("src.orchestrator.compute_perf_claims_metric", lambda m: 0.3)
 
@@ -29,12 +38,39 @@ def test_orchestrator_smoke(monkeypatch):
     # We'll let it compute naturally; net score uses these values.
 
     # Prevent README/network access in metrics that inspect repo files
-    monkeypatch.setattr("src.metrics.ramp_up.HfFileSystem", lambda: type("FS", (), {"ls": lambda self, repo_id, detail=False: [f"{repo_id}/README.md"]})())
-    monkeypatch.setattr("src.metrics.ramp_up.hf_hub_download", lambda **kwargs: __file__)
-    monkeypatch.setattr("src.metrics.license.HfFileSystem", lambda: type("FS", (), {"ls": lambda self, repo_id, detail=False: [f"{repo_id}/README.md"]})())
-    monkeypatch.setattr("src.metrics.license.hf_hub_download", lambda **kwargs: __file__)
-    monkeypatch.setattr("src.metrics.dataset_code_avail.HfFileSystem", lambda: type("FS", (), {"ls": lambda self, repo_id, detail=False: [f"{repo_id}/README.md"]})())
-    monkeypatch.setattr("src.metrics.dataset_code_avail.hf_hub_download", lambda **kwargs: __file__)
+    monkeypatch.setattr(
+        "src.metrics.ramp_up.HfFileSystem",
+        lambda: type(
+            "FS",
+            (),
+            {"ls": lambda self, repo_id, detail=False: [f"{repo_id}/README.md"]},
+        )(),
+    )
+    monkeypatch.setattr(
+        "src.metrics.ramp_up.hf_hub_download", lambda **kwargs: __file__
+    )
+    monkeypatch.setattr(
+        "src.metrics.license.HfFileSystem",
+        lambda: type(
+            "FS",
+            (),
+            {"ls": lambda self, repo_id, detail=False: [f"{repo_id}/README.md"]},
+        )(),
+    )
+    monkeypatch.setattr(
+        "src.metrics.license.hf_hub_download", lambda **kwargs: __file__
+    )
+    monkeypatch.setattr(
+        "src.metrics.dataset_code_avail.HfFileSystem",
+        lambda: type(
+            "FS",
+            (),
+            {"ls": lambda self, repo_id, detail=False: [f"{repo_id}/README.md"]},
+        )(),
+    )
+    monkeypatch.setattr(
+        "src.metrics.dataset_code_avail.hf_hub_download", lambda **kwargs: __file__
+    )
 
     output_json = calculate_all_metrics(dummy, "https://huggingface.co/org/model")
     data = json.loads(output_json)

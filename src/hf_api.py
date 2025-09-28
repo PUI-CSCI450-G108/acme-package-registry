@@ -1,6 +1,8 @@
-from typing import Optional, Dict, Any
 import os
-from huggingface_hub import HfApi, ModelInfo, DatasetInfo
+from typing import Any, Dict, Optional
+
+from huggingface_hub import DatasetInfo, HfApi, ModelInfo
+
 
 class HuggingFaceAPI:
     def __init__(self, token: Optional[str] = None):
@@ -25,7 +27,8 @@ class HuggingFaceAPI:
                 "license": info.cardData.get("license") if info.cardData else None,
             }
         return None
-    
+
+
 def test_connection():
     api = HuggingFaceAPI()
     model_id = "bert-base-uncased"
@@ -37,7 +40,10 @@ def test_connection():
         for key, value in metadata.items():
             print(f"  {key}: {value}")
     else:
-        print("Failed to fetch model metadata. Check your token or internet connection.")
+        print(
+            "Failed to fetch model metadata. Check your token or internet connection."
+        )
+
 
 if __name__ == "__main__":
     test_connection()

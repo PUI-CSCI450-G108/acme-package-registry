@@ -34,13 +34,22 @@ def compute_license_metric(model_info: Any) -> float:
     Computes the license score based on compatibility with LGPLv2.1.
     """
     compatible_licenses = [
-        "mit", "apache-2.0", "bsd-3-clause", "bsd-2-clause",
-        "lgpl-2.1", "epl-2.0", "mpl-2.0",
+        "mit",
+        "apache-2.0",
+        "bsd-3-clause",
+        "bsd-2-clause",
+        "lgpl-2.1",
+        "epl-2.0",
+        "mpl-2.0",
     ]
     incompatible_licenses = ["gpl-3.0", "agpl-3.0", "cc-by-nc"]
 
     license_str = ""
-    if hasattr(model_info, "cardData") and model_info.cardData and "license" in model_info.cardData:
+    if (
+        hasattr(model_info, "cardData")
+        and model_info.cardData
+        and "license" in model_info.cardData
+    ):
         license_str = model_info.cardData["license"]
 
     if not license_str:
@@ -48,7 +57,11 @@ def compute_license_metric(model_info: Any) -> float:
         if not readme_content:
             return 0.5
 
-        match = re.search(r"##?\s*License\s*\n(.+?)(?=\n##|$)", readme_content, re.IGNORECASE | re.DOTALL)
+        match = re.search(
+            r"##?\s*License\s*\n(.+?)(?=\n##|$)",
+            readme_content,
+            re.IGNORECASE | re.DOTALL,
+        )
         if match:
             license_str = match.group(1).strip()
         else:
@@ -58,7 +71,7 @@ def compute_license_metric(model_info: Any) -> float:
         return 0.5
 
     license_str_lower = license_str.lower()
-    
+
     # FIX: Use a simpler, more robust check
     for lic in incompatible_licenses:
         if lic in license_str_lower:
@@ -66,7 +79,7 @@ def compute_license_metric(model_info: Any) -> float:
 
     for lic in compatible_licenses:
         # Check for license ID with and without hyphen
-        if lic in license_str_lower or lic.replace('-', ' ') in license_str_lower:
+        if lic in license_str_lower or lic.replace("-", " ") in license_str_lower:
             return 1.0
 
     return 0.5
