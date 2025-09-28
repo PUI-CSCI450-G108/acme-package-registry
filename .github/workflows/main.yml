@@ -1,0 +1,71 @@
+jobs:
+  run:
+    runs-on: windows-latest
+    env:
+      # map your secret to BOTH common HF env var names
+      HF_TOKEN: ${{ secrets.HF_TOKEN || secrets.HUGGING_FACE_TOKEN }}
+      HUGGINGFACE_HUB_TOKEN: ${{ secrets.HF_TOKEN || secrets.HUGGING_FACE_TOKEN }}
+      GIT_LFS_SKIP_SMUDGE: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      # sanity checks in THIS job environment
+      - name: Sanity check env at job level
+        run: |
+          echo "event=$GITHUB_EVENT_NAME"
+          python - <<'PY'
+          import os
+          print("HF_TOKEN present?", bool(os.getenv("HF_TOKEN")))
+          print("HUGGINGFACE_HUB_TOKEN present?", bool(os.getenv("HUGGINGFACE_HUB_TOKEN")))
+          print("GIT_LFS_SKIP_SMUDGE:", os.getenv("GIT_LFS_SKIP_SMUDGE"))
+          PY
+
+      - name: Login to Hugging Face
+        # skip on forked PRs (no secrets available)
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          HF_TOKEN: ${{ env.HF_TOKEN }}
+        run: huggingface-cli login --token "$HF_TOKEN" --add-to-git-credential
+
+      - name: Make run executable
+        run: chmod +x ./run
+
+      - name: Run tests
+        env:
+          HF_TOKEN: ${{ env.HF_TOKEN }}
+          HUGGINGFACE_HUB_TOKEN: ${{ env.HUGGINGFACE_HUB_TOKEN }}
+          GIT_LFS_SKIP_SMUDGE: ${{ env.GIT_LFS_SKIP_SMUDGE }}
+        run: |
+          echo "Inside tests step, HF present? $(python - <<'PY'
+          import os; print(bool(os.getenv('HF_TOKEN') or os.getenv('HUGGINGFACE_HUB_TOKEN')))
+          PY)"
+          ./run test
+
+      - name: Run app on URLs
+        env:
+          HF_TOKEN: ${{ env.HF_TOKEN }}
+          HUGGINGFACE_HUB_TOKEN: ${{ env.HUGGINGFACE_HUB_TOKEN }}
+          GIT_LFS_SKIP_SMUDGE: ${{ env.GIT_LFS_SKIP_SMUDGE }}
+        run: |
+          # prove the env exists in the SAME shell as ./run
+          echo "Before ./run: HF present? $(python - <<'PY'
+          import os; print(bool(os.getenv('HF_TOKEN') or os.getenv('HUGGINGFACE_HUB_TOKEN')))
+          PY)"
+          ./run "${{ github.event.inputs.url_file || 'example_urls.txt' }}" | tee results.ndjson
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: results-ndjson
+          path: results.ndjson
