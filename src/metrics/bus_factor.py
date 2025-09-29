@@ -1,5 +1,6 @@
 from typing import Any, Dict, List
 import os
+import traceback
 import src.hf_api as hf_api
 
 
@@ -78,7 +79,7 @@ def compute_bus_factor_metric(model_info: Any) -> float:
             gini = 1.0
         return round(gini, 4)
     except Exception:
-        print("[bus_factor] exception", Exception.format_exc())
+        print("[bus_factor] exception", traceback.format_exc())
         # Safe fallback: avoid breaking overall scoring due to failures here
         return 0.0
 
