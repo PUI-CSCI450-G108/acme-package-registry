@@ -7,6 +7,7 @@ import logging
 import csv
 import typer
 from typing import Optional
+
 import json
 
 from src.logging_config import setup_logging
@@ -54,11 +55,8 @@ def test():
             text=True,
         )
 
-        # Print test output
-        if result.stdout:
-            print(result.stdout)
-        if result.stderr:
-            print(result.stderr, file=sys.stderr)
+        
+
 
         # Parse totals safely
         passed = 0
@@ -74,12 +72,16 @@ def test():
         if m_cov:
             coverage = int(m_cov.group(1))
 
+
+        # Emit only one clean line
         print(f"{passed}/{total} test cases passed. {coverage}% line coverage achieved.")
+        
     except Exception as e:
         typer.echo(f"Test failed: {e}", err=True)
         raise typer.Exit(1)
     # Important: propagate pytest exit status exactly
     raise typer.Exit(result.returncode)
+
 
 
 @app.command(name="process")
@@ -205,6 +207,7 @@ def process_cmd(url_file: str = typer.Argument(..., help="Path to file with URLs
 
             # Compute and emit NDJSON for this model
             ndjson_output = calculate_all_metrics(model_info, model_link)
+
             # Post-process for autograder: convert "org/name" -> "name" for MODEL outputs
             try:
                 obj = json.loads(ndjson_output)
@@ -217,6 +220,7 @@ def process_cmd(url_file: str = typer.Argument(..., help="Path to file with URLs
                 # If anything goes odd, fall back to original
                 print(ndjson_output)
             logging.debug(f"[line {idx}] Emitted NDJSON for {model_info.id}")
+
         except ValueError as ve:
             logging.error(f"[line {idx}] Value error for model URL {model_link}: {ve}")
             typer.echo(f"Error processing URL {model_link}: {ve}", err=True)
