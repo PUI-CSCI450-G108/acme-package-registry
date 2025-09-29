@@ -7,7 +7,11 @@ from huggingface_hub import DatasetInfo, HfApi, ModelInfo
 class HuggingFaceAPI:
     def __init__(self, token: Optional[str] = None):
         if token is None:
-            token = os.environ.get("HF_TOKEN")
+            token = (
+                os.environ.get("HF_API_TOKEN")
+                or os.environ.get("HUGGINGFACE_HUB_TOKEN")
+                or os.environ.get("HF_TOKEN")
+            )
         self.api = HfApi(token=token)
 
     def get_model_info(self, model_id: str) -> Optional[ModelInfo]:

@@ -2,6 +2,7 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable, Dict, Tuple
+import os
 
 # FIX: Update all imports to point to the 'src.metrics' directory
 from src.metrics.bus_factor import compute_bus_factor_metric
@@ -57,7 +58,7 @@ def calculate_all_metrics(model_info: Any, url: str) -> str:
     results = {}
     latencies = {}
 
-    with ThreadPoolExecutor(max_workers=len(metric_functions)) as executor:
+    with ThreadPoolExecutor(max_workers=min(len(metric_functions), (os.cpu_count() or 4), 8)) as executor:
         future_to_metric = {
             executor.submit(_run_metric_with_timing, func, model_info): name
             for name, func in metric_functions.items()
@@ -87,8 +88,11 @@ def calculate_all_metrics(model_info: Any, url: str) -> str:
     results["net_score"] = net_score
     latencies["net_score_latency"] = net_score_latency
 
+    base_name = getattr(model_info, "id", "")
+    if isinstance(base_name, str) and "/" in base_name:
+        base_name = base_name.split("/")[-1]
     output_data = {
-        "name": model_info.id,
+        "name": getattr(model_info, "id", ""),
         "category": "MODEL",
         **results,
         **latencies,
