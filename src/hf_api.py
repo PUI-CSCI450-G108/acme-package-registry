@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from huggingface_hub import DatasetInfo, HfApi, ModelInfo
 
@@ -27,6 +27,8 @@ class HuggingFaceAPI:
                 "license": info.cardData.get("license") if info.cardData else None,
             }
         return None
+    def list_repo_commits(self, repo_id: str, repo_type: str = "model", limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        return self.api.list_repo_commits(repo_id=repo_id, repo_type=repo_type)
 
 
 def test_connection():
