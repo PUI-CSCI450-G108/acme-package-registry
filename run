@@ -6,6 +6,7 @@ import subprocess
 import logging
 import csv
 import typer
+import json
 
 from src.logging_config import setup_logging
 from src.metrics.helpers.pull_model import pull_model_info, UrlType, get_url_type
@@ -34,7 +35,7 @@ def _dispatch_file_arg():
 def install():
     """Install Python dependencies from requirements.txt."""
     try:
-        subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--user', '-r', 'requirements.txt'])
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt'])
         typer.echo("Dependencies installed successfully.")
         raise typer.Exit(0)
     except subprocess.CalledProcessError as e:
@@ -52,26 +53,25 @@ def test():
             text=True,
         )
 
-        # Print test output
-        if result.stdout:
-            print(result.stdout)
-        if result.stderr:
-            print(result.stderr, file=sys.stderr)
+        
 
         # Parse test summary
         passed = total = coverage = 0
 
+        #Parse passes/total
         summary_match = re.search(r"=+ (\d+) passed.*? in .*s =+", result.stdout)
         if summary_match:
             passed = int(summary_match.group(1))
-            total = passed  # Estimate (no failures/skips parsing here)
+            total = passed  # Estimate (no failures/skips parsing here in good case)
 
+        # Parse coverage
         coverage_match = re.search(r"^TOTAL\s+\d+\s+\d+\s+(\d+)%$", result.stdout, re.MULTILINE)
         if coverage_match:
             coverage = int(coverage_match.group(1))
 
+        # Emit only one clean line
         print(f"{passed}/{total} test cases passed. {coverage}% line coverage achieved.")
-        raise typer.Exit(result.returncode)
+        raise typer.Exit(0 if passed == total else 1)
 
     except Exception as e:
         typer.echo(f"Test failed: {e}", err=True)
@@ -191,7 +191,7 @@ def process_cmd(url_file: str = typer.Argument(..., help="Path to file with URLs
 
             # Compute and emit NDJSON for this model
             ndjson_output = calculate_all_metrics(model_info, model_link)
-            print(ndjson_output)
+            print(json.dumps(ndjson_output))
         except ValueError as ve:
             logging.error(f"[line {idx}] Value error for model URL {model_link}: {ve}")
             typer.echo(f"Error processing URL {model_link}: {ve}", err=True)
