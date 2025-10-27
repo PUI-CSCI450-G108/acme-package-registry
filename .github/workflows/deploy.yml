@@ -7,6 +7,12 @@ on:
   pull_request:
     branches:
       - main  # Run tests on PRs, but don't deploy
+  workflow_dispatch:  # Allow manual trigger from any branch
+    inputs:
+      deploy:
+        description: 'Deploy to AWS? (yes/no)'
+        required: false
+        default: 'yes'
 
 env:
   AWS_REGION: us-east-1  # Change to your region
@@ -51,7 +57,9 @@ jobs:
     name: Deploy to AWS
     runs-on: ubuntu-latest
     needs: test  # Only run if tests pass
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'  # Only deploy on push to main
+    if: |
+      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy == 'yes')
 
     steps:
       - name: Checkout code
