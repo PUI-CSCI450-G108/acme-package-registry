@@ -63,3 +63,21 @@ class NDJsonOutput(BaseModel):
     code_quality_latency: int = Field(
         ..., ge=0, description="Time to compute code quality in milliseconds"
     )
+    reproducibility: float = Field(
+        ..., ge=0, le=1, description="Likelihood that reported results can be reproduced"
+    )
+    reproducibility_latency: int = Field(
+        ..., ge=0, description="Time to compute reproducibility in milliseconds"
+    )
+    reviewedness: float = Field(
+        ..., ge=0, le=1, description="Measure of peer or community review coverage"
+    )
+    reviewedness_latency: int = Field(
+        ..., ge=0, description="Time to compute reviewedness in milliseconds"
+    )
+    tree_score: float = Field(
+        ..., ge=0, le=1, description="Supply-chain health score for model dependencies"
+    )
+    tree_score_latency: int = Field(
+        ..., ge=0, description="Time to compute tree_score in milliseconds"
+    )

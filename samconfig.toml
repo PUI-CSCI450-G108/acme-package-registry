@@ -1,0 +1,17 @@
+version = 0.1
+
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "acme-package-registry"
+s3_bucket = ""  # SAM will create a managed bucket if not specified
+s3_prefix = "acme-package-registry"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "HuggingFaceToken=\"\""
+image_repositories = []
+
+[default.build]
+[default.build.parameters]
+use_container = false

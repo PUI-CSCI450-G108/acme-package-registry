@@ -207,3 +207,8 @@ marimo/_lsp/
 __marimo__/
 
 # Change for dummy commit
+
+# AWS SAM
+.aws-sam/
+samconfig.toml.bak
+events/
