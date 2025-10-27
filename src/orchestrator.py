@@ -40,6 +40,21 @@ def _run_metric_with_timing(
     return result, latency_ms
 
 
+def _compute_reproducibility_metric(model_info: Any) -> float:
+    """Placeholder for reproducibility metric (not yet implemented)."""
+    return 0.0
+
+
+def _compute_reviewedness_metric(model_info: Any) -> float:
+    """Placeholder for reviewedness metric (not yet implemented)."""
+    return 0.0
+
+
+def _compute_tree_score_metric(model_info: Any) -> float:
+    """Placeholder for tree_score metric (not yet implemented)."""
+    return 0.0
+
+
 def calculate_all_metrics(model_info: Any, url: str) -> str:
     """
     Orchestrates the parallel calculation of all metrics for a given model.
@@ -53,6 +68,9 @@ def calculate_all_metrics(model_info: Any, url: str) -> str:
         "dataset_quality": compute_dataset_quality_metric,
         "code_quality": compute_code_quality_metric,
         "performance_claims": compute_perf_claims_metric,
+        "reproducibility": _compute_reproducibility_metric,
+        "reviewedness": _compute_reviewedness_metric,
+        "tree_score": _compute_tree_score_metric,
     }
 
     results = {}
