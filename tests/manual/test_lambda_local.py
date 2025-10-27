@@ -201,7 +201,7 @@ def main():
     print(f"\nTotal: {passed}/{total} tests passed")
 
     if passed == total:
-        print("\n🎉 All tests passed!")
+        print("\n All tests passed!")
         return 0
     else:
         print(f"\n⚠️  {total - passed} test(s) failed")

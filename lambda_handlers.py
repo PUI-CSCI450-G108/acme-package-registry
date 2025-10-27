@@ -8,6 +8,7 @@ import os
 import json
 import logging
 import hashlib
+import uuid
 from typing import Dict, Any, Optional
 
 # Setup environment
@@ -97,6 +98,23 @@ def evaluate_model(url: str) -> dict:
     return convert_to_model_rating(result)
 
 
+def generate_artifact_id(artifact_type: str, url: str) -> str:
+    """Generate a deterministic, low-collision artifact ID.
+
+    Rationale:
+    - Previously used MD5 truncated to 12 chars, which increases collision risk.
+    - Use UUIDv5 (namespace-based) for deterministic IDs from (type, canonical URL).
+    - Hyphenated UUID string is allowed by our ID validator and avoids truncation risks.
+
+    Note: We canonicalize Hugging Face URLs to avoid duplicate IDs for equivalent URLs.
+    """
+    normalized_url = (
+        canonicalize_hf_url(url) if isinstance(url, str) and url.startswith("https://huggingface.co/") else url
+    )
+    name = f"{artifact_type}:{normalized_url}"
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, name))
+
+
 # --- Lambda Handlers ---
 
 def create_artifact(event: Dict[str, Any], context: Any) -> Dict:
@@ -139,8 +157,8 @@ def create_artifact(event: Dict[str, Any], context: Any) -> Dict:
                 "error": "There is missing field(s) in the artifact_data or it is formed improperly (must include a single url)."
             })
 
-        # Generate artifact ID
-        artifact_id = hashlib.md5(f"{artifact_type}:{url}".encode()).hexdigest()[:12]
+        # Generate artifact ID (deterministic UUID based on type+URL)
+        artifact_id = generate_artifact_id(artifact_type, url)
 
         # Check if already exists
         if artifact_id in ARTIFACTS_DB:
