@@ -29,8 +29,11 @@ logger.setLevel(logging.INFO)
 from src.metrics.helpers.pull_model import pull_model_info, canonicalize_hf_url
 from src.orchestrator import calculate_all_metrics
 
-# In-memory storage (in production, use DynamoDB or S3)
-# Note: Lambda containers are reused, so this persists across invocations
+# WARNING: In-memory storage is ephemeral and NOT suitable for production in AWS Lambda!
+# - Data in ARTIFACTS_DB will be lost on Lambda cold starts and is NOT shared between concurrent Lambda instances.
+# - This can cause data inconsistency, loss, or unexpected behavior in production scenarios.
+# - For production, migrate to a persistent backend such as DynamoDB or S3.
+#   Migration path: Replace ARTIFACTS_DB with DynamoDB/S3 API calls for all read/write operations.
 ARTIFACTS_DB: Dict[str, dict] = {}
 
 MIN_NET_SCORE_THRESHOLD = float(os.getenv("MIN_NET_SCORE", "0.5"))
