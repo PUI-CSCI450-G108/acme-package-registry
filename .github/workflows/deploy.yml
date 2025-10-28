@@ -88,6 +88,7 @@ jobs:
       - name: SAM Deploy
         run: |
           sam deploy --no-confirm-changeset --no-fail-on-empty-changeset \
+            --s3-bucket s3-model-registry-bucket \
             --parameter-overrides "HuggingFaceToken=${{ secrets.HF_TOKEN }}"
 
       - name: Get API URL
