@@ -212,3 +212,8 @@ __marimo__/
 .aws-sam/
 samconfig.toml.bak
 events/
+
+# Agentic AI
+.claude/
+AGENTS.md
+CLAUDE.md
