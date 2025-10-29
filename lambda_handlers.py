@@ -9,6 +9,7 @@ import json
 import logging
 import hashlib
 import uuid
+import boto3
 from typing import Dict, Any, Optional
 
 # Setup environment
@@ -29,14 +30,87 @@ logger.setLevel(logging.INFO)
 from src.metrics.helpers.pull_model import pull_model_info, canonicalize_hf_url
 from src.orchestrator import calculate_all_metrics
 
-# WARNING: In-memory storage is ephemeral and NOT suitable for production in AWS Lambda!
-# - Data in ARTIFACTS_DB will be lost on Lambda cold starts and is NOT shared between concurrent Lambda instances.
-# - This can cause data inconsistency, loss, or unexpected behavior in production scenarios.
-# - For production, migrate to a persistent backend such as DynamoDB or S3.
-#   Migration path: Replace ARTIFACTS_DB with DynamoDB/S3 API calls for all read/write operations.
-ARTIFACTS_DB: Dict[str, dict] = {}
+# S3 storage for artifacts
+BUCKET_NAME = os.getenv("ARTIFACTS_BUCKET")
+s3_client = boto3.client("s3") if BUCKET_NAME else None
 
 MIN_NET_SCORE_THRESHOLD = float(os.getenv("MIN_NET_SCORE", "0.5"))
+
+
+# --- S3 Storage Helpers ---
+
+def save_artifact_to_s3(artifact_id: str, artifact_data: dict) -> None:
+    """Save artifact data to S3 as JSON."""
+    if not s3_client or not BUCKET_NAME:
+        logger.warning("S3 not configured, skipping save")
+        return
+
+    key = f"artifacts/{artifact_id}.json"
+    s3_client.put_object(
+        Bucket=BUCKET_NAME,
+        Key=key,
+        Body=json.dumps(artifact_data),
+        ContentType="application/json"
+    )
+    logger.info(f"Saved artifact {artifact_id} to S3")
+
+
+def load_artifact_from_s3(artifact_id: str) -> Optional[dict]:
+    """Load artifact data from S3."""
+    if not s3_client or not BUCKET_NAME:
+        logger.warning("S3 not configured, cannot load")
+        return None
+
+    key = f"artifacts/{artifact_id}.json"
+    try:
+        response = s3_client.get_object(Bucket=BUCKET_NAME, Key=key)
+        data = json.loads(response["Body"].read().decode("utf-8"))
+        return data
+    except s3_client.exceptions.NoSuchKey:
+        return None
+    except Exception as e:
+        logger.error(f"Error loading artifact {artifact_id} from S3: {e}")
+        return None
+
+
+def artifact_exists_in_s3(artifact_id: str) -> bool:
+    """Check if artifact exists in S3."""
+    if not s3_client or not BUCKET_NAME:
+        return False
+
+    key = f"artifacts/{artifact_id}.json"
+    try:
+        s3_client.head_object(Bucket=BUCKET_NAME, Key=key)
+        return True
+    except:
+        return False
+
+
+def list_all_artifacts_from_s3() -> Dict[str, dict]:
+    """List all artifacts from S3 (for byName search)."""
+    if not s3_client or not BUCKET_NAME:
+        logger.warning("S3 not configured, returning empty list")
+        return {}
+
+    artifacts = {}
+    try:
+        paginator = s3_client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=BUCKET_NAME, Prefix="artifacts/"):
+            if "Contents" not in page:
+                continue
+
+            for obj in page["Contents"]:
+                key = obj["Key"]
+                if key.endswith(".json"):
+                    artifact_id = key.replace("artifacts/", "").replace(".json", "")
+                    artifact_data = load_artifact_from_s3(artifact_id)
+                    if artifact_data:
+                        artifacts[artifact_id] = artifact_data
+
+        return artifacts
+    except Exception as e:
+        logger.error(f"Error listing artifacts from S3: {e}")
+        return {}
 
 
 # --- Helper Functions ---
@@ -163,8 +237,8 @@ def create_artifact(event: Dict[str, Any], context: Any) -> Dict:
         # Generate artifact ID (deterministic UUID based on type+URL)
         artifact_id = generate_artifact_id(artifact_type, url)
 
-        # Check if already exists
-        if artifact_id in ARTIFACTS_DB:
+        # Check if already exists in S3
+        if artifact_exists_in_s3(artifact_id):
             return create_response(409, {"error": "Artifact exists already."})
 
         # Evaluate the artifact (only models supported for now)
@@ -197,13 +271,14 @@ def create_artifact(event: Dict[str, Any], context: Any) -> Dict:
             "type": artifact_type
         }
 
-        # Store artifact
-        ARTIFACTS_DB[artifact_id] = {
+        # Store artifact in S3
+        artifact_data = {
             "url": url,
             "metadata": metadata,
             "rating": rating,
             "type": artifact_type
         }
+        save_artifact_to_s3(artifact_id, artifact_data)
 
         logger.info(f"Registered artifact {artifact_id}: {name}")
 
@@ -248,11 +323,10 @@ def rate_artifact(event: Dict[str, Any], context: Any) -> Dict:
                 "error": "There is missing field(s) in the artifact_id or it is formed improperly, or is invalid."
             })
 
-        # Check if artifact exists
-        if artifact_id not in ARTIFACTS_DB:
+        # Load artifact from S3
+        artifact = load_artifact_from_s3(artifact_id)
+        if not artifact:
             return create_response(404, {"error": "Artifact does not exist."})
-
-        artifact = ARTIFACTS_DB[artifact_id]
 
         # Verify it's a model
         if artifact.get("type") != "model":
@@ -266,7 +340,9 @@ def rate_artifact(event: Dict[str, Any], context: Any) -> Dict:
             url = artifact.get("url")
             try:
                 rating = evaluate_model(url)
-                ARTIFACTS_DB[artifact_id]["rating"] = rating
+                # Update S3 with new rating
+                artifact["rating"] = rating
+                save_artifact_to_s3(artifact_id, artifact)
             except Exception as e:
                 logger.error(f"Error evaluating artifact {artifact_id}: {e}", exc_info=True)
                 return create_response(500, {
@@ -281,16 +357,72 @@ def rate_artifact(event: Dict[str, Any], context: Any) -> Dict:
         return create_response(500, {"error": f"Internal server error: {str(e)}"})
 
 
+def get_artifact_by_name(event: Dict[str, Any], context: Any) -> Dict:
+    """
+    Lambda handler for GET /artifact/byName/{name}
+
+    Returns metadata for all artifacts matching the provided name.
+
+    API Gateway Event Structure:
+    - event['pathParameters']['name'] - Artifact name to search for
+    - event['headers']['X-Authorization'] - Auth token (optional)
+    """
+    try:
+        logger.info(f"get_artifact_by_name invoked: {json.dumps(event)}")
+
+        # Handle OPTIONS preflight
+        if event.get('httpMethod') == 'OPTIONS':
+            return create_response(200, {})
+
+        # Parse path parameter
+        name = event.get('pathParameters', {}).get('name')
+        if not name:
+            return create_response(400, {
+                "error": "There is missing field(s) in the artifact_name or it is formed improperly, or is invalid."
+            })
+
+        # Search for artifacts with matching name in S3
+        all_artifacts = list_all_artifacts_from_s3()
+        matching_artifacts = []
+        for artifact_id, artifact_data in all_artifacts.items():
+            artifact_metadata = artifact_data.get("metadata", {})
+            artifact_name = artifact_metadata.get("name", "")
+
+            # Case-insensitive comparison
+            if artifact_name.lower() == name.lower():
+                matching_artifacts.append(artifact_metadata)
+
+        # Return 404 if no matches found
+        if not matching_artifacts:
+            return create_response(404, {"error": "No such artifact."})
+
+        logger.info(f"Found {len(matching_artifacts)} artifact(s) with name '{name}'")
+        return create_response(200, matching_artifacts)
+
+    except Exception as e:
+        logger.error(f"Unexpected error in get_artifact_by_name: {e}", exc_info=True)
+        return create_response(500, {"error": f"Internal server error: {str(e)}"})
+
+
 def health_check(event: Dict[str, Any], context: Any) -> Dict:
     """
     Lambda handler for GET /health
 
     Simple health check endpoint.
     """
+    # Count artifacts in S3
+    artifact_count = 0
+    if s3_client and BUCKET_NAME:
+        try:
+            response = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix="artifacts/")
+            artifact_count = response.get("KeyCount", 0)
+        except:
+            pass
+
     return create_response(200, {
         "status": "healthy",
         "service": "acme-package-registry",
-        "artifacts_count": len(ARTIFACTS_DB)
+        "artifacts_count": artifact_count
     })
 
 
