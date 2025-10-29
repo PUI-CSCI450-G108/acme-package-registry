@@ -27,6 +27,14 @@ Parameters:
     Default: ""
 
 Resources:
+  # S3 Bucket for artifact storage
+  ArtifactsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "acme-registry-artifacts-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Enabled
+
   # Lambda Function for POST /artifact/{artifact_type}
   CreateArtifactFunction:
     Type: AWS::Serverless::Function
@@ -38,6 +46,10 @@ Resources:
       Environment:
         Variables:
           HF_TOKEN: !Ref HuggingFaceToken
+          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+      Policies:
+        - S3WritePolicy:
+            BucketName: !Ref ArtifactsBucket
 
   # Lambda Function for GET /artifact/model/{id}/rate
   RateArtifactFunction:
@@ -50,6 +62,10 @@ Resources:
       Environment:
         Variables:
           HF_TOKEN: !Ref HuggingFaceToken
+          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ArtifactsBucket
 
   # Lambda Function for GET /health
   HealthCheckFunction:
@@ -61,6 +77,23 @@ Resources:
       FunctionName: acme-registry-health-check
       Timeout: 10
       MemorySize: 128
+
+  # Lambda Function for GET /artifact/byName/{name}
+  GetArtifactByNameFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.get_artifact_by_name
+      Description: Get artifacts by name
+      FunctionName: acme-registry-get-artifact-by-name
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ArtifactsBucket
 
 Outputs:
   CreateArtifactFunctionArn:
@@ -92,3 +125,17 @@ Outputs:
   HealthCheckFunctionName:
     Description: "Health Check Lambda Function Name"
     Value: !Ref HealthCheckFunction
+
+  GetArtifactByNameFunctionArn:
+    Description: "Get Artifact By Name Lambda Function ARN"
+    Value: !GetAtt GetArtifactByNameFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-GetArtifactByNameFunctionArn"
+
+  GetArtifactByNameFunctionName:
+    Description: "Get Artifact By Name Lambda Function Name"
+    Value: !Ref GetArtifactByNameFunction
+
+  ArtifactsBucketName:
+    Description: "S3 Bucket for artifact storage"
+    Value: !Ref ArtifactsBucket

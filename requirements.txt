@@ -9,3 +9,4 @@ isort
 flake8
 mypy
 validators
+boto3
