@@ -48,7 +48,7 @@ Resources:
           HF_TOKEN: !Ref HuggingFaceToken
           ARTIFACTS_BUCKET: !Ref ArtifactsBucket
       Policies:
-        - S3CrudPolicy:
+        - S3WritePolicy:
             BucketName: !Ref ArtifactsBucket
 
   # Lambda Function for GET /artifact/model/{id}/rate
