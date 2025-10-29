@@ -12,6 +12,10 @@ Globals:
         GIT_LFS_SKIP_SMUDGE: "1"
         HF_HUB_DISABLE_PROGRESS_BARS: "1"
         MIN_NET_SCORE: "0.5"
+        # Configure HuggingFace to use Lambda's writable /tmp directory
+        HF_HOME: "/tmp/huggingface"
+        HUGGINGFACE_HUB_CACHE: "/tmp/huggingface/hub"
+        TRANSFORMERS_CACHE: "/tmp/huggingface/transformers"
         # Add your HuggingFace token here or set via parameter
         # HF_TOKEN: !Ref HuggingFaceToken
 
@@ -30,22 +34,10 @@ Resources:
       CodeUri: .
       Handler: lambda_handlers.create_artifact
       Description: Register a new artifact (model/dataset/code)
+      FunctionName: acme-registry-create-artifact
       Environment:
         Variables:
           HF_TOKEN: !Ref HuggingFaceToken
-      Events:
-        CreateArtifact:
-          Type: Api
-          Properties:
-            Path: /artifact/{artifact_type}
-            Method: POST
-            RestApiId: !Ref ApiGateway
-        CreateArtifactOptions:
-          Type: Api
-          Properties:
-            Path: /artifact/{artifact_type}
-            Method: OPTIONS
-            RestApiId: !Ref ApiGateway
 
   # Lambda Function for GET /artifact/model/{id}/rate
   RateArtifactFunction:
@@ -54,22 +46,10 @@ Resources:
       CodeUri: .
       Handler: lambda_handlers.rate_artifact
       Description: Get ratings for a model artifact
+      FunctionName: acme-registry-rate-artifact
       Environment:
         Variables:
           HF_TOKEN: !Ref HuggingFaceToken
-      Events:
-        RateArtifact:
-          Type: Api
-          Properties:
-            Path: /artifact/model/{id}/rate
-            Method: GET
-            RestApiId: !Ref ApiGateway
-        RateArtifactOptions:
-          Type: Api
-          Properties:
-            Path: /artifact/model/{id}/rate
-            Method: OPTIONS
-            RestApiId: !Ref ApiGateway
 
   # Lambda Function for GET /health
   HealthCheckFunction:
@@ -78,78 +58,37 @@ Resources:
       CodeUri: .
       Handler: lambda_handlers.health_check
       Description: Health check endpoint
+      FunctionName: acme-registry-health-check
       Timeout: 10
       MemorySize: 128
-      Events:
-        HealthCheck:
-          Type: Api
-          Properties:
-            Path: /health
-            Method: GET
-            RestApiId: !Ref ApiGateway
-
-  # API Gateway REST API
-  ApiGateway:
-    Type: AWS::Serverless::Api
-    Properties:
-      StageName: prod
-      Cors:
-        AllowMethods: "'GET,POST,OPTIONS'"
-        AllowHeaders: "'Content-Type,X-Authorization'"
-        AllowOrigin: "'*'"
-      DefinitionBody:
-        openapi: "3.0.1"
-        info:
-          title: "ACME Package Registry API"
-          version: "1.0"
-        paths:
-          /artifact/{artifact_type}:
-            post:
-              x-amazon-apigateway-integration:
-                httpMethod: POST
-                type: aws_proxy
-                uri:
-                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CreateArtifactFunction.Arn}/invocations
-            options:
-              x-amazon-apigateway-integration:
-                httpMethod: POST
-                type: aws_proxy
-                uri:
-                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CreateArtifactFunction.Arn}/invocations
-          /artifact/model/{id}/rate:
-            get:
-              x-amazon-apigateway-integration:
-                httpMethod: POST
-                type: aws_proxy
-                uri:
-                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RateArtifactFunction.Arn}/invocations
-            options:
-              x-amazon-apigateway-integration:
-                httpMethod: POST
-                type: aws_proxy
-                uri:
-                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RateArtifactFunction.Arn}/invocations
-          /health:
-            get:
-              x-amazon-apigateway-integration:
-                httpMethod: POST
-                type: aws_proxy
-                uri:
-                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HealthCheckFunction.Arn}/invocations
 
 Outputs:
-  ApiUrl:
-    Description: "API Gateway endpoint URL for prod stage"
-    Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod/"
-
   CreateArtifactFunctionArn:
     Description: "Create Artifact Lambda Function ARN"
     Value: !GetAtt CreateArtifactFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-CreateArtifactFunctionArn"
+
+  CreateArtifactFunctionName:
+    Description: "Create Artifact Lambda Function Name"
+    Value: !Ref CreateArtifactFunction
 
   RateArtifactFunctionArn:
     Description: "Rate Artifact Lambda Function ARN"
     Value: !GetAtt RateArtifactFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-RateArtifactFunctionArn"
+
+  RateArtifactFunctionName:
+    Description: "Rate Artifact Lambda Function Name"
+    Value: !Ref RateArtifactFunction
 
   HealthCheckFunctionArn:
     Description: "Health Check Lambda Function ARN"
     Value: !GetAtt HealthCheckFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-HealthCheckFunctionArn"
+
+  HealthCheckFunctionName:
+    Description: "Health Check Lambda Function Name"
+    Value: !Ref HealthCheckFunction
