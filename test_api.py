@@ -8,9 +8,12 @@ import requests
 import json
 import sys
 from typing import Optional
+import os
 
-# Configuration - UPDATE THIS with your actual API Gateway URL
-API_BASE_URL = "https://s9fj0wjsih.execute-api.us-east-1.amazonaws.com/dev"
+# Configuration: Set your API Gateway URL via the API_BASE_URL environment variable
+API_BASE_URL = os.getenv("API_BASE_URL")
+if not API_BASE_URL:
+    raise RuntimeError("API_BASE_URL environment variable is not set. Please set it to your API Gateway URL.")
 
 # Example URLs to test with
 TEST_URLS = {
