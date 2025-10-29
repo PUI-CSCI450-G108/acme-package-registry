@@ -45,7 +45,7 @@ def test_artifact_endpoint(
     }
 
     if auth_token:
-        headers["X-Authorization"] = auth_token
+        headers["Authorization"] = auth_token
 
     payload = {
         "url": url
