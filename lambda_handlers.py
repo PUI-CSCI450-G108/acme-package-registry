@@ -436,10 +436,11 @@ def health_check(event: Dict[str, Any], context: Any) -> Dict:
         except Exception as e:
             # Ignore errors in artifact count for health check, but log for debugging
             logger.warning(f"Failed to count artifacts in S3 during health check: {e}", exc_info=True)
+    return {
         "status": "healthy",
         "service": "acme-package-registry",
         "artifacts_count": artifact_count
-    })
+    }
 
 
 # --- For local testing ---
