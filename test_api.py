@@ -102,8 +102,10 @@ def test_artifact_endpoint(
         print(f"\n✗ ERROR: {e}")
 
 
-def test_health_endpoint(api_base_url: str = API_BASE_URL) -> None:
+def test_health_endpoint(api_base_url: Optional[str] = None) -> None:
     """Test the /health endpoint"""
+    if api_base_url is None:
+        api_base_url = API_BASE_URL
     endpoint = f"{api_base_url}/health"
 
     print(f"\n{'='*60}")
