@@ -137,7 +137,7 @@ def main():
     print("=" * 60)
 
     # Check if API URL is configured
-    if "YOUR_API_ID" in API_BASE_URL:
+    if API_BASE_URL and "YOUR_API_ID" in API_BASE_URL:
         print("\n⚠ WARNING: Please update API_BASE_URL in this script with your actual API Gateway URL")
         print("  Example: https://abc123xyz.execute-api.us-east-1.amazonaws.com/dev")
         print("\nYou can find your API URL by running:")
