@@ -7,7 +7,7 @@ Run this to test Lambda functions locally without deploying to AWS:
 """
 
 import json
-from lambda_handlers import create_artifact, rate_artifact, health_check
+from lambda_handlers import create_artifact, rate_artifact, health_check, get_artifact_by_name
 
 
 def test_create_artifact():
@@ -97,10 +97,45 @@ def test_rate_artifact(artifact_id: str):
         return False
 
 
+def test_get_artifact_by_name(artifact_name: str):
+    """Test GET /artifact/byName/{name}"""
+    print("\n" + "=" * 60)
+    print(f"TEST 3: Get Artifact By Name (GET /artifact/byName/{artifact_name})")
+    print("=" * 60)
+
+    event = {
+        "httpMethod": "GET",
+        "pathParameters": {"name": artifact_name},
+        "headers": {}
+    }
+
+    print(f"\nRequest: GET /artifact/byName/{artifact_name}")
+
+    response = get_artifact_by_name(event, None)
+
+    print(f"\nResponse Status: {response['statusCode']}")
+
+    if response['statusCode'] == 200:
+        body = json.loads(response['body'])
+        print(f"✅ SUCCESS - Found {len(body)} artifact(s)!")
+        for i, artifact in enumerate(body):
+            print(f"\nArtifact {i+1}:")
+            print(f"  ID: {artifact['id']}")
+            print(f"  Name: {artifact['name']}")
+            print(f"  Version: {artifact['version']}")
+            print(f"  Type: {artifact['type']}")
+        return body[0]['id'] if body else None
+    else:
+        body = json.loads(response['body'])
+        print(f"❌ FAILED")
+        print(f"Error: {body.get('error', 'Unknown error')}")
+        return None
+
+
 def test_duplicate_artifact():
     """Test duplicate registration (should fail with 409)"""
     print("\n" + "=" * 60)
-    print("TEST 3: Duplicate Registration (expect 409)")
+    print("TEST 4: Duplicate Registration (expect 409)")
     print("=" * 60)
 
     event = {
@@ -128,7 +163,7 @@ def test_duplicate_artifact():
 def test_health_check():
     """Test GET /health"""
     print("\n" + "=" * 60)
-    print("TEST 4: Health Check (GET /health)")
+    print("TEST 5: Health Check (GET /health)")
     print("=" * 60)
 
     event = {
@@ -169,20 +204,35 @@ def main():
     artifact_id = test_create_artifact()
     results.append(("Create Artifact", artifact_id is not None))
 
+    artifact_name = None
     if artifact_id:
         # Test 2: Rate artifact
         success = test_rate_artifact(artifact_id)
         results.append(("Rate Artifact", success))
 
-        # Test 3: Duplicate check
+        # Get artifact name from the in-memory DB for byName test
+        from lambda_handlers import ARTIFACTS_DB
+        if artifact_id in ARTIFACTS_DB:
+            artifact_name = ARTIFACTS_DB[artifact_id]['metadata']['name']
+
+        # Test 3: Get artifact by name
+        if artifact_name:
+            retrieved_id = test_get_artifact_by_name(artifact_name)
+            results.append(("Get Artifact By Name", retrieved_id == artifact_id))
+        else:
+            print("\n⚠️  Skipping test 3 due to missing artifact name")
+            results.append(("Get Artifact By Name", False))
+
+        # Test 4: Duplicate check
         success = test_duplicate_artifact()
         results.append(("Duplicate Check", success))
     else:
-        print("\n⚠️  Skipping tests 2 & 3 due to failed artifact creation")
+        print("\n⚠️  Skipping tests 2, 3 & 4 due to failed artifact creation")
         results.append(("Rate Artifact", False))
+        results.append(("Get Artifact By Name", False))
         results.append(("Duplicate Check", False))
 
-    # Test 4: Health check
+    # Test 5: Health check
     success = test_health_check()
     results.append(("Health Check", success))
 
