@@ -7,7 +7,10 @@ Run this to test Lambda functions locally without deploying to AWS:
 """
 
 import json
-from lambda_handlers import create_artifact, rate_artifact, health_check, get_artifact_by_name
+from lambda_handlers.create_artifact import handler as create_artifact
+from lambda_handlers.rate_artifact import handler as rate_artifact
+from lambda_handlers.health_check import handler as health_check
+from lambda_handlers.get_artifact_by_name import handler as get_artifact_by_name
 
 
 def test_create_artifact():
@@ -210,10 +213,11 @@ def main():
         success = test_rate_artifact(artifact_id)
         results.append(("Rate Artifact", success))
 
-        # Get artifact name from the in-memory DB for byName test
-        from lambda_handlers import ARTIFACTS_DB
-        if artifact_id in ARTIFACTS_DB:
-            artifact_name = ARTIFACTS_DB[artifact_id]['metadata']['name']
+        # Get artifact name from S3 for byName test
+        from lambda_handlers.utils import load_artifact_from_s3
+        artifact_data = load_artifact_from_s3(artifact_id)
+        if artifact_data:
+            artifact_name = artifact_data['metadata']['name']
 
         # Test 3: Get artifact by name
         if artifact_name:

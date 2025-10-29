@@ -40,7 +40,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: .
-      Handler: lambda_handlers.create_artifact
+      Handler: lambda_handlers.create_artifact.handler
       Description: Register a new artifact (model/dataset/code)
       FunctionName: acme-registry-create-artifact
       Environment:
@@ -56,7 +56,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: .
-      Handler: lambda_handlers.rate_artifact
+      Handler: lambda_handlers.rate_artifact.handler
       Description: Get ratings for a model artifact
       FunctionName: acme-registry-rate-artifact
       Environment:
@@ -72,7 +72,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: .
-      Handler: lambda_handlers.health_check
+      Handler: lambda_handlers.health_check.handler
       Description: Health check endpoint
       FunctionName: acme-registry-health-check
       Timeout: 10
@@ -83,7 +83,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: .
-      Handler: lambda_handlers.get_artifact_by_name
+      Handler: lambda_handlers.get_artifact_by_name.handler
       Description: Get artifacts by name
       FunctionName: acme-registry-get-artifact-by-name
       Timeout: 10
