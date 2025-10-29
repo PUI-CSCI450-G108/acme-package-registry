@@ -91,17 +91,12 @@ jobs:
             --s3-bucket s3-model-registry-bucket \
             --parameter-overrides "HuggingFaceToken=${{ secrets.HF_TOKEN }}"
 
-      - name: Get API URL
+      - name: Get Lambda Function ARNs
         run: |
-          API_URL=$(aws cloudformation describe-stacks \
+          echo "Deployed Lambda Functions:"
+          aws cloudformation describe-stacks \
             --stack-name acme-package-registry \
-            --query 'Stacks[0].Outputs[?OutputKey==`ApiUrl`].OutputValue' \
-            --output text)
-          echo "API deployed to: $API_URL"
-          echo "API_URL=$API_URL" >> $GITHUB_ENV
-
-      - name: Test deployed API
-        run: |
-          echo "Testing health endpoint..."
-          curl -f ${{ env.API_URL }}/health || exit 1
-          echo "Health check passed!"
+            --query 'Stacks[0].Outputs[*].[OutputKey,OutputValue]' \
+            --output table
+          echo ""
+          echo "Note: Connect these Lambda functions to your API Gateway manually"
