@@ -103,9 +103,14 @@ def list_all_artifacts_from_s3() -> Dict[str, dict]:
                 key = obj["Key"]
                 if key.endswith(".json"):
                     artifact_id = key.replace("artifacts/", "").replace(".json", "")
-                    artifact_data = load_artifact_from_s3(artifact_id)
-                    if artifact_data:
+                    try:
+                        response = s3_client.get_object(Bucket=BUCKET_NAME, Key=key)
+                        artifact_data = json.loads(response["Body"].read().decode("utf-8"))
                         artifacts[artifact_id] = artifact_data
+                    except s3_client.exceptions.NoSuchKey:
+                        continue
+                    except Exception as e:
+                        logger.error(f"Error loading artifact {artifact_id} from S3: {e}")
 
         return artifacts
     except Exception as e:
