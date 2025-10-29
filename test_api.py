@@ -8,9 +8,12 @@ import requests
 import json
 import sys
 from typing import Optional
+import os
 
-# Configuration - UPDATE THIS with your actual API Gateway URL
-API_BASE_URL = "https://s9fj0wjsih.execute-api.us-east-1.amazonaws.com/dev"
+# Configuration: Set your API Gateway URL via the API_BASE_URL environment variable
+API_BASE_URL = os.getenv("API_BASE_URL")
+if not API_BASE_URL:
+    raise RuntimeError("API_BASE_URL environment variable is not set. Please set it to your API Gateway URL.")
 
 # Example URLs to test with
 TEST_URLS = {
@@ -42,7 +45,7 @@ def test_artifact_endpoint(
     }
 
     if auth_token:
-        headers["X-Authorization"] = auth_token
+        headers["Authorization"] = auth_token
 
     payload = {
         "url": url
@@ -315,9 +318,10 @@ def test_create_and_rate(
     else:
         print("\n✗ ERROR: Could not retrieve artifact ID, skipping rate test")
 
-
-def test_health_endpoint(api_base_url: str = API_BASE_URL) -> None:
+def test_health_endpoint(api_base_url: Optional[str] = None) -> None:
     """Test the /health endpoint"""
+    if api_base_url is None:
+        api_base_url = API_BASE_URL
     endpoint = f"{api_base_url}/health"
 
     print(f"\n{'='*60}")
@@ -351,7 +355,7 @@ def main():
     print("=" * 60)
 
     # Check if API URL is configured
-    if "YOUR_API_ID" in API_BASE_URL:
+    if API_BASE_URL and "YOUR_API_ID" in API_BASE_URL:
         print("\n⚠ WARNING: Please update API_BASE_URL in this script with your actual API Gateway URL")
         print("  Example: https://abc123xyz.execute-api.us-east-1.amazonaws.com/dev")
         print("\nYou can find your API URL by running:")
