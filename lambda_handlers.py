@@ -10,6 +10,7 @@ import logging
 import hashlib
 import uuid
 import boto3
+from botocore.exceptions import ClientError
 from typing import Dict, Any, Optional
 
 # Setup environment
@@ -66,7 +67,10 @@ def load_artifact_from_s3(artifact_id: str) -> Optional[dict]:
         response = s3_client.get_object(Bucket=BUCKET_NAME, Key=key)
         data = json.loads(response["Body"].read().decode("utf-8"))
         return data
-    except s3_client.exceptions.NoSuchKey:
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'NoSuchKey':
+            return None
+        logger.error(f"Error loading artifact {artifact_id} from S3: {e}")
         return None
     except Exception as e:
         logger.error(f"Error loading artifact {artifact_id} from S3: {e}")
@@ -82,7 +86,13 @@ def artifact_exists_in_s3(artifact_id: str) -> bool:
     try:
         s3_client.head_object(Bucket=BUCKET_NAME, Key=key)
         return True
-    except:
+    except ClientError as e:
+        if e.response['Error']['Code'] in ['404', 'NoSuchKey']:
+            return False
+        logger.error(f"Error checking artifact {artifact_id} existence in S3: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error checking artifact {artifact_id} in S3: {e}")
         return False
 
 
@@ -107,8 +117,10 @@ def list_all_artifacts_from_s3() -> Dict[str, dict]:
                         response = s3_client.get_object(Bucket=BUCKET_NAME, Key=key)
                         artifact_data = json.loads(response["Body"].read().decode("utf-8"))
                         artifacts[artifact_id] = artifact_data
-                    except s3_client.exceptions.NoSuchKey:
-                        continue
+                    except ClientError as e:
+                        if e.response['Error']['Code'] == 'NoSuchKey':
+                            continue
+                        logger.error(f"Error loading artifact {artifact_id} from S3: {e}")
                     except Exception as e:
                         logger.error(f"Error loading artifact {artifact_id} from S3: {e}")
 
