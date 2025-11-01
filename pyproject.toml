@@ -38,5 +38,6 @@ dependencies = [
     "isort",
     "flake8",
     "mypy",
-    "validators"
+    "validators",
+    "packaging"
 ]
