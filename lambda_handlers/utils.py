@@ -10,7 +10,7 @@ import logging
 import uuid
 import boto3
 from botocore.exceptions import ClientError
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Iterable, List
 
 # Setup environment
 os.environ.setdefault("GIT_LFS_SKIP_SMUDGE", "1")
@@ -127,6 +127,57 @@ def list_all_artifacts_from_s3() -> Dict[str, dict]:
     except Exception as e:
         logger.error(f"Error listing artifacts from S3: {e}")
         return {}
+
+
+def _chunked_keys(keys: Iterable[Dict[str, str]], size: int = 1000) -> Iterable[List[Dict[str, str]]]:
+    """Yield chunks of S3 object identifiers."""
+
+    chunk: List[Dict[str, str]] = []
+    for key in keys:
+        chunk.append(key)
+        if len(chunk) >= size:
+            yield chunk
+            chunk = []
+    if chunk:
+        yield chunk
+
+
+def delete_all_artifacts_from_s3() -> int:
+    """Delete every stored artifact object from S3.
+
+    Returns the number of deleted artifacts. If S3 is not configured the function
+    is a no-op and returns 0.
+    """
+
+    if not s3_client or not BUCKET_NAME:
+        logger.warning("S3 not configured, reset skipped")
+        return 0
+
+    try:
+        paginator = s3_client.get_paginator("list_objects_v2")
+        objects_to_delete: List[Dict[str, str]] = []
+        for page in paginator.paginate(Bucket=BUCKET_NAME, Prefix="artifacts/"):
+            for obj in page.get("Contents", []):
+                objects_to_delete.append({"Key": obj["Key"]})
+
+        delete_count = len(objects_to_delete)
+        if not objects_to_delete:
+            return 0
+
+        for chunk in _chunked_keys(objects_to_delete, size=1000):
+            s3_client.delete_objects(
+                Bucket=BUCKET_NAME,
+                Delete={"Objects": chunk, "Quiet": True}
+            )
+
+        logger.info(f"Deleted {delete_count} artifact object(s) from S3")
+        return delete_count
+    except ClientError as e:
+        logger.error(f"Error resetting artifacts in S3: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error during S3 reset: {e}")
+        raise
 
 
 # --- Response Helpers ---
