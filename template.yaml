@@ -122,7 +122,7 @@ Resources:
         - S3ReadPolicy:
             BucketName: !Ref ArtifactsBucket
 
-  # Lambda Function for POST /artifacts
+  # Lambda Function for POST /artifacts (list/query artifacts, not creation)
   ListArtifactsFunction:
     Type: AWS::Serverless::Function
     Properties:
