@@ -35,6 +35,33 @@ Resources:
       VersioningConfiguration:
         Status: Enabled
 
+  # S3 Bucket for static website hosting
+  WebsiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "acme-registry-frontend-${AWS::AccountId}"
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+
+  # Bucket policy for public read access to website
+  WebsiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WebsiteBucket
+      PolicyDocument:
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: '*'
+            Action: 's3:GetObject'
+            Resource: !Sub '${WebsiteBucket.Arn}/*'
+
   # Lambda Function for POST /artifact/{artifact_type}
   CreateArtifactFunction:
     Type: AWS::Serverless::Function
@@ -95,6 +122,42 @@ Resources:
         - S3ReadPolicy:
             BucketName: !Ref ArtifactsBucket
 
+  # Lambda Function for POST /artifacts
+  ListArtifactsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.list_artifacts.handler
+      Description: List artifacts with pagination and filtering
+      FunctionName: acme-registry-list-artifacts
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+          ARTIFACTS_PAGE_SIZE: "50"
+          ARTIFACTS_MAX_RESULTS: "250"
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ArtifactsBucket
+
+  # Lambda Function for DELETE /reset
+  ResetRegistryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.reset_registry.handler
+      Description: Reset registry by deleting all artifacts
+      FunctionName: acme-registry-reset
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref ArtifactsBucket
+
 Outputs:
   CreateArtifactFunctionArn:
     Description: "Create Artifact Lambda Function ARN"
@@ -139,3 +202,31 @@ Outputs:
   ArtifactsBucketName:
     Description: "S3 Bucket for artifact storage"
     Value: !Ref ArtifactsBucket
+
+  ListArtifactsFunctionArn:
+    Description: "List Artifacts Lambda Function ARN"
+    Value: !GetAtt ListArtifactsFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ListArtifactsFunctionArn"
+
+  ListArtifactsFunctionName:
+    Description: "List Artifacts Lambda Function Name"
+    Value: !Ref ListArtifactsFunction
+
+  ResetRegistryFunctionArn:
+    Description: "Reset Registry Lambda Function ARN"
+    Value: !GetAtt ResetRegistryFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ResetRegistryFunctionArn"
+
+  ResetRegistryFunctionName:
+    Description: "Reset Registry Lambda Function Name"
+    Value: !Ref ResetRegistryFunction
+
+  WebsiteBucketName:
+    Description: "S3 Bucket for static website"
+    Value: !Ref WebsiteBucket
+
+  WebsiteUrl:
+    Description: "Static website URL for front-end"
+    Value: !GetAtt WebsiteBucket.WebsiteURL
