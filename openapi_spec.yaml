@@ -2,23 +2,23 @@
 openapi: 3.0.2
 info:
   title: ECE 461 - Fall 2025 - Project Phase 2
-  version: 3.2.4
+  version: 3.4.2
   description: |-
     API for ECE 461/Fall 2025/Project Phase 2: A Trustworthy Model Registry"
 
     All endpoints have BASELINE or NON-BASELINE listed. Please read through all descriptions before raising questions.
 
-    An `artifact_id` is a unique identifier for model/dataset/code combinations and their versions. (Key idea -> the id is unique for all entities).
+    An `artifact_id` is a unique identifier for each model/dataset/code entry. (Key idea -> the id is unique for all entities, even when a source reuses the same name).
+
+    Hugging Face models rarely expose formal revision tags, so treat every ingest as a standalone artifact identified solely by its name and generated id.
 
     Eg.
 
-        model_name: audience-classifier , model_version: 0.3.0 -> artifact_id: 3847247294
+        model_name: audience-classifier -> artifact_id: 3847247294
 
-        dataset_name: bookcorpus, dataset_version: 2.3.0 -> artifact_id: 5738291045
+        dataset_name: bookcorpus -> artifact_id: 5738291045
 
-        code_name: google-research-bert, code_version: 2024.01.15 -> artifact_id: 9182736455
-
-        code_name: google-research-bert , code_version: 2023.12.01 -> artifact_id: 7364518290
+        code_name: google-research-bert -> artifact_id: 9182736455
 
   termsOfService: http://swagger.io/terms/
   contact:
@@ -29,6 +29,48 @@ info:
     name: Apache 2.0
     url: https://www.apache.org/licenses/LICENSE-2.0.html
 paths:
+  /health:
+    get:
+      summary: "Heartbeat check (BASELINE)"
+      description: |-
+        Lightweight liveness probe. Returns HTTP 200 when the registry API is reachable.
+      operationId: RegistryHealthHeartbeat
+      responses:
+        "200":
+          description: Service reachable.
+
+  /health/components:
+    get:
+      summary: "Get component health details (NON-BASELINE)"
+      description: |-
+        Return per-component health diagnostics, including status, active issues, and log references.
+        Use this endpoint to power deeper observability dashboards or for incident debugging.
+      operationId: RegistryHealthComponents
+      parameters:
+        - name: windowMinutes
+          in: query
+          description: "Length of the trailing observation window, in minutes (5-1440). Defaults to 60."
+          required: false
+          schema:
+            type: integer
+            minimum: 5
+            maximum: 1440
+            default: 60
+        - name: includeTimeline
+          in: query
+          description: "Set to true to include per-component activity timelines sampled across the window."
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: Component-level health detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthComponentCollection"
+
   /artifacts:
     post:
       requestBody:
@@ -66,22 +108,19 @@ paths:
               examples:
                 ExampleResponse:
                   value:
-                    - version: "0.3.0"
-                      name: audience-classifier
+                    - name: audience-classifier
                       id: 3847247294
                       type: model
-                    - version: "2.3.0"
-                      name: bookcorpus
+                    - name: bookcorpus
                       id: 5738291045
                       type: dataset
-                    - version: "2024.01.15"
-                      name: google-research-bert
+                    - name: google-research-bert
                       id: 9182736455
                       type: code
           description: List of artifacts
         "400":
           description: "There is missing field(s) in the artifact_query or it is formed improperly, or is invalid."
-        403:
+        "403":
           description: Authentication failed due to invalid or missing AuthenticationToken.
         "413":
           description: Too many artifacts returned.
@@ -94,8 +133,6 @@ paths:
         If you want to enumerate all artifacts, provide an array with a single artifact_query whose name is "*".
 
         The response is paginated; the response header includes the offset to use in the next query.
-
-        In the Request Body below, "version" has all the possible inputs. The "version" cannot be a combination of the different possibilities.
     parameters:
       - name: X-Authorization
         description: ""
@@ -108,9 +145,9 @@ paths:
       responses:
         "200":
           description: Registry is reset.
-        401:
+        "401":
           description: You do not have permission to reset the registry.
-        403:
+        "403":
           description: Authentication failed due to invalid or missing AuthenticationToken.
       operationId: RegistryReset
       summary: Reset the registry. (BASELINE)
@@ -148,7 +185,6 @@ paths:
                   value:
                     metadata:
                       name: openai-whisper
-                      version: "2023.12.01"
                       id: 7364518290
                       type: code
                     data:
@@ -156,7 +192,7 @@ paths:
           description: Return the artifact. url is required.
         "400":
           description: "There is missing field(s) in the artifact_type or artifact_id or it is formed improperly, or is invalid."
-        403:
+        "403":
           description: Authentication failed due to invalid or missing AuthenticationToken.
         "404":
           description: Artifact does not exist.
@@ -185,17 +221,17 @@ paths:
           required: true
       responses:
         "200":
-          description: version is updated.
+          description: Artifact is updated.
         "400":
           description: "There is missing field(s) in the artifact_type or artifact_id or it is formed improperly, or is invalid."
-        403:
+        "403":
           description: Authentication failed due to invalid or missing AuthenticationToken.
         "404":
           description: Artifact does not exist.
       operationId: ArtifactUpdate
       summary: Update this content of the artifact. (BASELINE)
       description: |-
-        The name, version, and id must match.
+        The name and id must match.
 
         The artifact source (from artifact_data) will replace the previous contents.
     delete:
@@ -217,12 +253,12 @@ paths:
           description: Artifact is deleted.
         "400":
           description: "There is missing field(s) in the artifact_type or artifact_id or invalid"
-        403:
+        "403":
           description: Authentication failed due to invalid or missing AuthenticationToken.
         "404":
           description: Artifact does not exist.
       operationId: ArtifactDelete
-      summary: Delete this version of the artifact. (NON-BASELINE)
+      summary: Delete this artifact. (NON-BASELINE)
       description: Delete only the artifact that matches "id". (id is a unique identifier for an artifact)
     parameters:
       - examples:
@@ -275,7 +311,6 @@ paths:
                   value:
                     metadata:
                       name: bert-base-uncased
-                      version: 1.1.0
                       id: 9078563412
                       type: model
                     data:
@@ -285,7 +320,7 @@ paths:
             ID.
         "400":
           description: There is missing field(s) in the artifact_data or it is formed improperly (must include a single url).
-        403:
+        "403":
           description: Authentication failed due to invalid or missing AuthenticationToken.
         "409":
           description: Artifact exists already.
@@ -294,7 +329,7 @@ paths:
       operationId: ArtifactCreate
       summary: Register a new artifact. (BASELINE)
       description: |-
-        Register a new artifact by providing a downloadable source url. Artifacts may share a name with existing entries if their version differs. Refer to the description above to see how an id is formed for an artifact.
+        Register a new artifact by providing a downloadable source url. Artifacts may share a name with existing entries; refer to the description above to see how an id is formed for an artifact.
     parameters:
       - name: artifact_type
         description: Type of artifact being ingested.
@@ -311,7 +346,7 @@ paths:
   /artifact/model/{id}/rate:
     get:
       responses:
-        200:
+        "200":
           content:
             application/json:
               schema:
@@ -319,13 +354,13 @@ paths:
           description:
             Return the rating. Only use this if each metric was computed
             successfully.
-        400:
+        "400":
           description: "There is missing field(s) in the artifact_id or it is formed improperly, or is invalid."
-        403:
+        "403":
           description: Authentication failed due to invalid or missing AuthenticationToken.
-        404:
+        "404":
           description: Artifact does not exist.
-        500:
+        "500":
           description: The artifact rating system encountered an error while computing at least one metric.
       operationId: ModelArtifactRate
       summary: "Get ratings for this model artifact. (BASELINE)"
@@ -344,7 +379,7 @@ paths:
   /artifact/{artifact_type}/{id}/cost:
     get:
       responses:
-        200:
+        "200":
           content:
             application/json:
               schema:
@@ -374,13 +409,13 @@ paths:
                       }
                     }
           description: Return the total cost of the artifact, and its dependencies
-        400:
+        "400":
           description: "There is missing field(s) in the artifact_type or artifact_id or it is formed improperly, or is invalid."
-        403:
+        "403":
           description: Authentication failed due to invalid or missing AuthenticationToken.
-        404:
+        "404":
           description: Artifact does not exist.
-        500:
+        "500":
           description: The artifact cost calculator encountered an error.
       summary: "Get the cost of an artifact (BASELINE)"
     parameters:
@@ -471,30 +506,27 @@ paths:
                 items:
                   $ref: "#/components/schemas/ArtifactMetadata"
               examples:
-                AudienceClassifierVersions:
+                AudienceClassifierEntries:
                   value:
                     - name: audience-classifier
-                      version: 0.2.0
                       id: 3847247293
                       type: model
                     - name: audience-classifier
-                      version: 0.3.0
                       id: 3847247294
                       type: model
                     - name: bookcorpus
-                      version: 2.3.0
                       id: 5738291045
                       type: dataset
           description: Return artifact metadata entries that match the provided name.
         "400":
           description: "There is missing field(s) in the artifact_name or it is formed improperly, or is invalid."
-        403:
+        "403":
           description: Authentication failed due to invalid or missing AuthenticationToken.
         "404":
           description: No such artifact.
       operationId: ArtifactByNameGet
       summary: List artifact metadata for this name. (NON-BASELINE)
-      description: Return metadata for each version matching this artifact name.
+      description: Return metadata for each artifact matching this name.
     parameters:
       - examples:
           ExampleName:
@@ -555,7 +587,6 @@ paths:
                       date: 2024-07-11T14:22:05Z
                       artifact:
                         name: audience-classifier
-                        version: 0.2.0
                         id: 3847247293
                         type: model
                       action: CREATE
@@ -565,7 +596,6 @@ paths:
                       date: 2024-07-11T14:24:18Z
                       artifact:
                         name: audience-classifier
-                        version: 0.2.0
                         id: 3847247293
                         type: model
                       action: DOWNLOAD
@@ -575,14 +605,13 @@ paths:
                       date: 2024-09-02T01:12:30Z
                       artifact:
                         name: audience-classifier
-                        version: 0.3.0
                         id: 3847247294
                         type: model
                       action: RATE
           description: Return the audit trail for this artifact. (NON-BASELINE)
         "400":
           description: "There is missing field(s) in the artifact_type or artifact_id or it is formed improperly, or is invalid."
-        403:
+        "403":
           description: Authentication failed due to invalid or missing AuthenticationToken.
         "404":
           description: Artifact does not exist.
@@ -619,11 +648,9 @@ paths:
                     nodes:
                       - artifact_id: 3847247294
                         name: audience-classifier
-                        version: 0.3.0
                         source: config_json
                       - artifact_id: 5738291045
                         name: bookcorpus
-                        version: 2.3.0
                         source: upstream_dataset
                     edges:
                       - from_node_artifact_id: 5738291045
@@ -632,7 +659,7 @@ paths:
           description: Lineage graph extracted from structured metadata. (BASELINE)
         "400":
           description: "The lineage graph cannot be computed because the artifact metadata is missing or malformed."
-        403:
+        "403":
           description: Authentication failed due to invalid or missing AuthenticationToken.
         "404":
           description: Artifact does not exist.
@@ -679,7 +706,7 @@ paths:
           description: License compatibility analysis produced successfully. (BASELINE)
         "400":
           description: "The license check request is malformed or references an unsupported usage context."
-        403:
+        "403":
           description: Authentication failed due to invalid or missing AuthenticationToken.
         "404":
           description: The artifact or GitHub project could not be found.
@@ -712,21 +739,18 @@ paths:
                 ExampleResponse:
                   value:
                     - name: audience-classifier
-                      version: 0.3.0
                       id: 3847247294
                       type: model
                     - name: openai-whisper
-                      version: 2023.12.01
                       id: 7364518290
                       type: code
                     - name: bert-base-uncased
-                      version: 1.1.0
                       id: 9078563412
                       type: model
           description: Return a list of artifacts.
         "400":
           description: There is missing field(s) in the artifact_regex or it is formed improperly, or is invalid
-        403:
+        "403":
           description: Authentication failed due to invalid or missing AuthenticationToken.
         "404":
           description: No artifact found under this regex.
@@ -750,7 +774,7 @@ paths:
       summary: "Get the list of tracks a student has planned to implement in their code"
 
       responses:
-        200:
+        "200":
           description: Return the list of tracks the student plans to implement
           content:
             application/json:
@@ -768,7 +792,7 @@ paths:
                         - "High assurance track"
                         - "Other Security track"
 
-        500:
+        "500":
           description: The system encountered an error while retrieving the student's track information.
 
 components:
@@ -825,22 +849,17 @@ components:
 
     ArtifactMetadata:
       description: |-
-        The `name` and `version` are used as a unique identifier pair when uploading an artifact.
+        The `name` is provided when uploading an artifact.
 
-        The `id` is used as an internal identifier for interacting with existing artifacts.
+        The `id` is used as an internal identifier for interacting with existing artifacts and distinguishes artifacts that share a name.
       required:
         - name
-        - version
         - id
         - type
       type: object
       properties:
         name:
           $ref: "#/components/schemas/ArtifactName"
-        version:
-          description: Artifact version
-          type: string
-          example: 1.2.3
         id:
           $ref: "#/components/schemas/ArtifactID"
         type:
@@ -852,9 +871,6 @@ components:
         - name
       type: object
       properties:
-        version:
-          $ref: "#/components/schemas/SemverRange"
-          description: ""
         name:
           $ref: "#/components/schemas/ArtifactName"
           description: ""
@@ -945,10 +961,6 @@ components:
           description: Human-readable label for the node.
           type: string
           example: audience-classifier
-        version:
-          description: Version string associated with the node.
-          type: string
-          example: 0.3.0
         source:
           description: Provenance for how the node was discovered.
           type: string
@@ -1210,15 +1222,240 @@ components:
         secret:
           $ref: "#/components/schemas/UserAuthenticationInfo"
           description: ""
-    SemverRange:
-      description: ""
-      type: string
-      example: |-
-        Exact (1.2.3)
-        Bounded range (1.2.3-2.1.0)
-        Carat (^1.2.3)
-        Tilde (~1.2.0)
     EnumerateOffset:
       description: Offset in pagination.
       type: string
       example: "1"
+    HealthStatus:
+      description: Aggregate health classification for monitored systems.
+      type: string
+      enum:
+        - ok
+        - degraded
+        - critical
+        - unknown
+    HealthSummaryResponse:
+      description: High-level snapshot summarizing registry health and recent activity.
+      required:
+        - status
+        - checked_at
+        - window_minutes
+      type: object
+      properties:
+        status:
+          $ref: "#/components/schemas/HealthStatus"
+        checked_at:
+          description: Timestamp when the health snapshot was generated (UTC).
+          type: string
+          format: date-time
+        window_minutes:
+          description: Size of the trailing observation window in minutes.
+          type: integer
+          minimum: 5
+        uptime_seconds:
+          description: Seconds the registry API has been running.
+          type: integer
+          minimum: 0
+        version:
+          description: Running service version or git SHA when available.
+          type: string
+        request_summary:
+          $ref: "#/components/schemas/HealthRequestSummary"
+        components:
+          description: Rollup of component status ordered by severity.
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthComponentBrief"
+        logs:
+          description: Quick links or descriptors for recent log files.
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthLogReference"
+    HealthRequestSummary:
+      description: Request activity observed within the health window.
+      required:
+        - window_start
+        - window_end
+      type: object
+      properties:
+        window_start:
+          description: Beginning of the aggregation window (UTC).
+          type: string
+          format: date-time
+        window_end:
+          description: End of the aggregation window (UTC).
+          type: string
+          format: date-time
+        total_requests:
+          description: Number of API requests served during the window.
+          type: integer
+          minimum: 0
+        per_route:
+          description: Request counts grouped by API route.
+          type: object
+          additionalProperties:
+            type: integer
+            minimum: 0
+        per_artifact_type:
+          description: Request counts grouped by artifact type (model/dataset/code).
+          type: object
+          additionalProperties:
+            type: integer
+            minimum: 0
+        unique_clients:
+          description: Distinct API clients observed in the window.
+          type: integer
+          minimum: 0
+    HealthComponentBrief:
+      description: Lightweight component-level status summary.
+      required:
+        - id
+        - status
+      type: object
+      properties:
+        id:
+          description: Stable identifier for the component (e.g., ingest-worker, metrics).
+          type: string
+        display_name:
+          description: Human readable component name.
+          type: string
+        status:
+          $ref: "#/components/schemas/HealthStatus"
+        issue_count:
+          description: Number of outstanding issues contributing to the status.
+          type: integer
+          minimum: 0
+        last_event_at:
+          description: Last significant event timestamp for the component.
+          type: string
+          format: date-time
+    HealthComponentCollection:
+      description: Detailed health diagnostics broken down per component.
+      required:
+        - components
+        - generated_at
+      type: object
+      properties:
+        components:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthComponentDetail"
+        generated_at:
+          description: Timestamp when the component report was created (UTC).
+          type: string
+          format: date-time
+        window_minutes:
+          description: Observation window applied to the component metrics.
+          type: integer
+          minimum: 5
+    HealthComponentDetail:
+      description: Detailed status, metrics, and log references for a component.
+      required:
+        - id
+        - status
+        - observed_at
+      type: object
+      properties:
+        id:
+          description: Stable identifier for the component.
+          type: string
+        display_name:
+          description: Human readable component name.
+          type: string
+        status:
+          $ref: "#/components/schemas/HealthStatus"
+        observed_at:
+          description: Timestamp when data for this component was last collected (UTC).
+          type: string
+          format: date-time
+        description:
+          description: Overview of the component's responsibility.
+          type: string
+        metrics:
+          $ref: "#/components/schemas/HealthMetricMap"
+        issues:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthIssue"
+        timeline:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthTimelineEntry"
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthLogReference"
+    HealthMetricMap:
+      description: Arbitrary metric key/value pairs describing component performance.
+      type: object
+      additionalProperties:
+        $ref: "#/components/schemas/HealthMetricValue"
+    HealthMetricValue:
+      description: Flexible representation for metric values.
+      oneOf:
+        - type: integer
+        - type: number
+        - type: string
+        - type: boolean
+    HealthTimelineEntry:
+      description: Time-series datapoint for a component metric.
+      required:
+        - bucket
+        - value
+      type: object
+      properties:
+        bucket:
+          description: Start timestamp of the sampled bucket (UTC).
+          type: string
+          format: date-time
+        value:
+          description: Observed value for the bucket (e.g., requests per minute).
+          type: number
+        unit:
+          description: Unit associated with the metric value.
+          type: string
+    HealthIssue:
+      description: Outstanding issue or alert impacting a component.
+      required:
+        - code
+        - severity
+        - summary
+      type: object
+      properties:
+        code:
+          description: Machine readable issue identifier.
+          type: string
+        severity:
+          description: Issue severity.
+          type: string
+          enum:
+            - info
+            - warning
+            - error
+        summary:
+          description: Short description of the issue.
+          type: string
+        details:
+          description: Extended diagnostic detail and suggested remediation.
+          type: string
+    HealthLogReference:
+      description: Link or descriptor for logs relevant to a health component.
+      required:
+        - label
+        - url
+      type: object
+      properties:
+        label:
+          description: Human readable log descriptor (e.g., "Ingest Worker 1").
+          type: string
+        url:
+          description: Direct link to download or tail the referenced log.
+          type: string
+          format: uri
+        tail_available:
+          description: Indicates whether streaming tail access is supported.
+          type: boolean
+        last_updated_at:
+          description: Timestamp of the latest log entry available for this reference.
+          type: string
+          format: date-time
