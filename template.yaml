@@ -45,9 +45,9 @@ Resources:
         ErrorDocument: index.html
       PublicAccessBlockConfiguration:
         BlockPublicAcls: false
-        BlockPublicPolicy: false
+        BlockPublicPolicy: true
         IgnorePublicAcls: false
-        RestrictPublicBuckets: false
+        RestrictPublicBuckets: true
 
   # Bucket policy for public read access to website
   WebsiteBucketPolicy:
