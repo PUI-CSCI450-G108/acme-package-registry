@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
 """
 Simple script to test the AWS deployed ACME Package Registry API
-Tests the /artifact/{artifact_type} endpoint
+
+Supported endpoints:
+- POST /artifact/{artifact_type} - Create a new artifact
+- GET /artifact/model/{id}/rate - Get artifact ratings
+- GET /artifact/byName/{name} - Get artifact by name
+- GET /health - Health check
+- POST /artifacts - List/query artifacts with pagination
+- DELETE /reset - Reset the registry (delete all artifacts)
 """
 
 import requests
@@ -348,6 +355,152 @@ def test_health_endpoint(api_base_url: Optional[str] = None) -> None:
         print(f"\n✗ ERROR: {e}")
 
 
+def test_list_artifacts(
+    queries: list,
+    offset: Optional[int] = None,
+    api_base_url: str = API_BASE_URL,
+    auth_token: Optional[str] = None
+) -> None:
+    """
+    Test the POST /artifacts endpoint (list/query artifacts)
+
+    Args:
+        queries: List of query dictionaries with 'name', optional 'types', and optional 'version'
+        offset: Optional pagination offset
+        api_base_url: Base URL of your API Gateway
+        auth_token: Optional authorization token
+    """
+    endpoint = f"{api_base_url}/artifacts"
+    if offset is not None:
+        endpoint += f"?offset={offset}"
+
+    headers = {
+        "Content-Type": "application/json"
+    }
+
+    if auth_token:
+        headers["X-Authorization"] = auth_token
+
+    print(f"\n{'='*60}")
+    print(f"Testing: POST /artifacts")
+    print(f"Endpoint: {endpoint}")
+    print(f"Payload: {json.dumps(queries, indent=2)}")
+    print(f"{'='*60}")
+
+    try:
+        response = requests.post(
+            endpoint,
+            headers=headers,
+            json=queries,
+            timeout=30
+        )
+
+        print(f"\nStatus Code: {response.status_code}")
+        print(f"Response Headers: {dict(response.headers)}")
+
+        try:
+            response_json = response.json()
+            print(f"\nResponse Body:")
+            print(json.dumps(response_json, indent=2))
+        except json.JSONDecodeError:
+            print(f"\nResponse Body (raw):")
+            print(response.text)
+
+        # Check status
+        if response.status_code == 200:
+            print("\n✓ SUCCESS: Artifacts retrieved successfully!")
+            if isinstance(response_json, list):
+                print(f"  Found {len(response_json)} artifact(s)")
+                for artifact in response_json:
+                    print(f"    - {artifact.get('name')} (v{artifact.get('version')}) - Type: {artifact.get('type')}")
+
+                # Check for pagination header
+                if 'offset' in response.headers:
+                    print(f"  Next offset: {response.headers['offset']}")
+        elif response.status_code == 400:
+            print("\n✗ ERROR: Bad request - check your query format")
+        elif response.status_code == 413:
+            print("\n✗ ERROR: Too many artifacts returned")
+        else:
+            print(f"\n✗ ERROR: Unexpected status code {response.status_code}")
+
+    except requests.exceptions.Timeout:
+        print("\n✗ ERROR: Request timed out")
+    except requests.exceptions.ConnectionError as e:
+        print(f"\n✗ ERROR: Connection failed - check your API URL")
+        print(f"  Details: {e}")
+    except Exception as e:
+        print(f"\n✗ ERROR: {e}")
+
+
+def test_reset_registry(
+    api_base_url: str = API_BASE_URL,
+    auth_token: Optional[str] = None
+) -> None:
+    """
+    Test the DELETE /reset endpoint
+
+    Args:
+        api_base_url: Base URL of your API Gateway
+        auth_token: Optional authorization token
+    """
+    endpoint = f"{api_base_url}/reset"
+
+    headers = {}
+    if auth_token:
+        headers["X-Authorization"] = auth_token
+
+    print(f"\n{'='*60}")
+    print(f"Testing: DELETE /reset")
+    print(f"Endpoint: {endpoint}")
+    print(f"{'='*60}")
+    print("\n⚠ WARNING: This will delete ALL artifacts from the registry!")
+
+    # Ask for confirmation in interactive mode
+    if sys.stdout.isatty():
+        confirm = input("Are you sure you want to continue? (yes/no): ")
+        if confirm.lower() != "yes":
+            print("\n✗ CANCELLED: Reset operation aborted")
+            return
+
+    try:
+        response = requests.delete(
+            endpoint,
+            headers=headers,
+            timeout=30
+        )
+
+        print(f"\nStatus Code: {response.status_code}")
+        print(f"Response Headers: {dict(response.headers)}")
+
+        try:
+            response_json = response.json()
+            print(f"\nResponse Body:")
+            print(json.dumps(response_json, indent=2))
+        except json.JSONDecodeError:
+            print(f"\nResponse Body (raw):")
+            print(response.text)
+
+        # Check status
+        if response.status_code == 200:
+            print("\n✓ SUCCESS: Registry reset successfully!")
+            if "deleted_artifacts" in response_json:
+                deleted_count = response_json["deleted_artifacts"]
+                print(f"  Deleted {deleted_count} artifact(s)")
+        elif response.status_code == 500:
+            print("\n✗ ERROR: Failed to reset registry storage")
+        else:
+            print(f"\n✗ ERROR: Unexpected status code {response.status_code}")
+
+    except requests.exceptions.Timeout:
+        print("\n✗ ERROR: Request timed out")
+    except requests.exceptions.ConnectionError as e:
+        print(f"\n✗ ERROR: Connection failed - check your API URL")
+        print(f"  Details: {e}")
+    except Exception as e:
+        print(f"\n✗ ERROR: {e}")
+
+
 def main():
     """Main test runner"""
     print("=" * 60)
@@ -363,24 +516,112 @@ def main():
         print("    --query 'Stacks[0].Outputs[?OutputKey==`ApiUrl`].OutputValue' --output text")
         sys.exit(1)
 
-    # Test health endpoint first
-    test_health_endpoint()
+    # Parse command line arguments
+    if len(sys.argv) > 1:
+        command = sys.argv[1]
 
-    # Get artifact type from command line or use default
-    artifact_type = sys.argv[1] if len(sys.argv) > 1 else "model"
-    url = sys.argv[2] if len(sys.argv) > 2 else TEST_URLS.get(artifact_type)
+        # Test health endpoint
+        if command == "health":
+            test_health_endpoint()
 
-    if artifact_type not in ["model", "dataset", "code"]:
-        print(f"\n✗ ERROR: Invalid artifact type '{artifact_type}'")
-        print("  Valid types: model, dataset, code")
-        sys.exit(1)
+        # Test list artifacts endpoint
+        elif command == "list":
+            # Example queries
+            queries = [{"name": "*"}]
+            if len(sys.argv) > 2:
+                # Allow custom query from command line
+                try:
+                    queries = json.loads(sys.argv[2])
+                except json.JSONDecodeError:
+                    print("\n✗ ERROR: Invalid JSON for queries")
+                    print("  Example: '[{\"name\": \"*\"}]'")
+                    sys.exit(1)
 
-    if not url:
-        print(f"\n✗ ERROR: No URL provided for artifact type '{artifact_type}'")
-        sys.exit(1)
+            offset = None
+            if len(sys.argv) > 3:
+                try:
+                    offset = int(sys.argv[3])
+                except ValueError:
+                    print("\n✗ ERROR: Offset must be an integer")
+                    sys.exit(1)
 
-    # Test creating the artifact and then getting its rating
-    test_create_and_rate(artifact_type, url)
+            test_list_artifacts(queries, offset)
+
+        # Test reset registry endpoint
+        elif command == "reset":
+            test_reset_registry()
+
+        # Test create and rate workflow
+        elif command in ["model", "dataset", "code"]:
+            artifact_type = command
+            url = sys.argv[2] if len(sys.argv) > 2 else TEST_URLS.get(artifact_type)
+
+            if not url:
+                print(f"\n✗ ERROR: No URL provided for artifact type '{artifact_type}'")
+                print(f"  Usage: python test_api.py {artifact_type} <url>")
+                sys.exit(1)
+
+            # Test health endpoint first
+            test_health_endpoint()
+
+            # Test creating the artifact and then getting its rating
+            test_create_and_rate(artifact_type, url)
+
+        # Run comprehensive test suite
+        elif command == "all":
+            print("\nRunning comprehensive test suite...")
+
+            # 1. Health check
+            test_health_endpoint()
+
+            # 2. Create a model artifact
+            print("\n" + "=" * 60)
+            print("TEST 1: Create Model Artifact")
+            print("=" * 60)
+            test_create_and_rate("model", TEST_URLS["model"])
+
+            # 3. List all artifacts
+            print("\n" + "=" * 60)
+            print("TEST 2: List All Artifacts")
+            print("=" * 60)
+            test_list_artifacts([{"name": "*"}])
+
+            # 4. List specific artifact
+            print("\n" + "=" * 60)
+            print("TEST 3: Query Specific Artifact")
+            print("=" * 60)
+            test_list_artifacts([{"name": "gpt2", "types": ["model"]}])
+
+        # Show usage
+        else:
+            print("\nUsage:")
+            print("  python test_api.py health                           # Test health endpoint")
+            print("  python test_api.py list [queries] [offset]          # Test list artifacts endpoint")
+            print("  python test_api.py reset                            # Test reset registry endpoint")
+            print("  python test_api.py <type> <url>                     # Test create artifact and rate")
+            print("  python test_api.py all                              # Run comprehensive test suite")
+            print("\nExamples:")
+            print('  python test_api.py list \'[{"name": "*"}]\'')
+            print('  python test_api.py list \'[{"name": "gpt2", "types": ["model"]}]\'')
+            print("  python test_api.py model https://huggingface.co/gpt2")
+            print("\nArtifact types: model, dataset, code")
+            sys.exit(1)
+    else:
+        # Default: run comprehensive test suite
+        print("\nNo command specified. Running comprehensive test suite...")
+        print("Use 'python test_api.py health|list|reset|model|dataset|code|all' for specific tests\n")
+
+        # Test health endpoint
+        test_health_endpoint()
+
+        # Test creating a model artifact and getting its rating
+        test_create_and_rate("model", TEST_URLS["model"])
+
+        # Test listing artifacts
+        print("\n" + "=" * 60)
+        print("Testing List Artifacts Endpoint")
+        print("=" * 60)
+        test_list_artifacts([{"name": "*"}])
 
     print("\n" + "=" * 60)
     print("Test completed!")
