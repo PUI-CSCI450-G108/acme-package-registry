@@ -158,6 +158,23 @@ Resources:
         - S3CrudPolicy:
             BucketName: !Ref ArtifactsBucket
 
+  #Lambda Function for Get /artifact/{atifact_id}
+  GetArtifactByIdFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.get_artifact_by_id.handler
+      Description: Get artifact by ID
+      FunctionName: acme-registry-get-artifact-by-id
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ArtifactsBucket
+
 Outputs:
   CreateArtifactFunctionArn:
     Description: "Create Artifact Lambda Function ARN"
