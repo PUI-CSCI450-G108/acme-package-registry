@@ -43,8 +43,8 @@ def _build_specifier(range_expression: str) -> Optional[SpecifierSet]:
             spec = _caret_to_specifier(expression[1:].strip())
         elif expression.startswith("~"):
             spec = _tilde_to_specifier(expression[1:].strip())
-        elif "-" in expression:
-            lower, upper = (part.strip() for part in expression.split("-", 1))
+        elif " - " in expression:
+            lower, upper = (part.strip() for part in expression.split(" - ", 1))
             if not lower or not upper:
                 raise ValueError("Invalid range expression")
             spec = f">={lower},<={upper}"
