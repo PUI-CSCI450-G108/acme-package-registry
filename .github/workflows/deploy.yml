@@ -87,6 +87,14 @@ jobs:
             --s3-bucket s3-model-registry-bucket \
             --parameter-overrides "HuggingFaceToken=${{ secrets.HF_TOKEN }}"
 
+      - name: Sync Front-End to S3
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          WEBSITE_BUCKET="acme-registry-frontend-${ACCOUNT_ID}"
+          echo "Syncing front-end to s3://${WEBSITE_BUCKET}/"
+          aws s3 sync front-end/ s3://${WEBSITE_BUCKET}/ --delete
+          echo "Front-end deployed successfully!"
+
       - name: Get Lambda Function ARNs
         run: |
           echo "Deployed Lambda Functions:"
