@@ -68,7 +68,8 @@ def _caret_to_specifier(base_version: str) -> str:
             first_non_zero = idx
             break
     else:
-        first_non_zero = len(release) - 1
+        # All parts are zero; caret should only match the exact version
+        return f"=={base_version}"
 
     upper_release = release[: first_non_zero + 1]
     upper_release[first_non_zero] += 1
