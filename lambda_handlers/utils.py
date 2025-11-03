@@ -188,7 +188,7 @@ def create_response(status_code: int, body: Any, headers: Optional[Dict] = None)
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Content-Type,X-Authorization",
-        "Access-Control-Allow-Methods": "GET,POST,OPTIONS"
+        "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS"
     }
 
     if headers:
@@ -199,6 +199,15 @@ def create_response(status_code: int, body: Any, headers: Optional[Dict] = None)
         "headers": default_headers,
         "body": json.dumps(body) if not isinstance(body, str) else body
     }
+
+
+def handle_cors_preflight(event: Dict[str, Any]) -> Optional[Dict]:
+    """Handle OPTIONS preflight requests for CORS.
+
+    Returns a response dict if this is a preflight request, None otherwise.
+    """
+    if event.get("httpMethod") == "OPTIONS" or event.get("requestContext", {}).get("http", {}).get("method") == "OPTIONS":
+        return create_response(200, "")
 
 
 # --- Model Evaluation Helpers ---
