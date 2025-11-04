@@ -77,6 +77,7 @@ Resources:
   # Bucket policy to allow CloudFront OAC access
   WebsiteBucketPolicy:
     Type: AWS::S3::BucketPolicy
+    DependsOn: CloudFrontDistribution
     Properties:
       Bucket: !Ref WebsiteBucket
       PolicyDocument:
