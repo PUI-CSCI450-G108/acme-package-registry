@@ -53,32 +53,79 @@ Resources:
       VersioningConfiguration:
         Status: Enabled
 
-  # S3 Bucket for static website hosting
+  # S3 Bucket for static website hosting (via CloudFront)
   WebsiteBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub "acme-registry-frontend-${AWS::AccountId}"
-      WebsiteConfiguration:
-        IndexDocument: index.html
-        ErrorDocument: index.html
       PublicAccessBlockConfiguration:
-        BlockPublicAcls: false
-        BlockPublicPolicy: false
-        IgnorePublicAcls: false
-        RestrictPublicBuckets: false
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
 
-  # Bucket policy for public read access to website
+  # CloudFront Origin Access Control for S3 bucket
+  CloudFrontOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "acme-registry-frontend-oac-${AWS::AccountId}"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # Bucket policy to allow CloudFront OAC access
   WebsiteBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
       Bucket: !Ref WebsiteBucket
       PolicyDocument:
         Statement:
-          - Sid: PublicReadGetObject
+          - Sid: AllowCloudFrontServicePrincipal
             Effect: Allow
-            Principal: '*'
+            Principal:
+              Service: cloudfront.amazonaws.com
             Action: 's3:GetObject'
             Resource: !Sub '${WebsiteBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
+
+  # CloudFront Distribution for front-end
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        HttpVersion: http2
+        DefaultRootObject: index.html
+        Comment: ACME Package Registry Front-End Distribution
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt WebsiteBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt CloudFrontOriginAccessControl.Id
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+          Compress: true
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 300
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 300
+        PriceClass: PriceClass_100
 
   # Lambda Function for POST /artifact/{artifact_type}
   CreateArtifactFunction:
@@ -317,6 +364,14 @@ Outputs:
     Description: "S3 Bucket for static website"
     Value: !Ref WebsiteBucket
 
-  WebsiteUrl:
-    Description: "Static website URL for front-end"
-    Value: !GetAtt WebsiteBucket.WebsiteURL
+  CloudFrontDistributionId:
+    Description: "CloudFront Distribution ID"
+    Value: !Ref CloudFrontDistribution
+    Export:
+      Name: !Sub "${AWS::StackName}-CloudFrontDistributionId"
+
+  CloudFrontUrl:
+    Description: "CloudFront HTTPS URL for front-end"
+    Value: !Sub "https://${CloudFrontDistribution.DomainName}"
+    Export:
+      Name: !Sub "${AWS::StackName}-CloudFrontUrl"
