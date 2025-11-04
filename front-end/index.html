@@ -4,9 +4,552 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ACME Package Registry</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            padding: 30px;
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+
+        .config-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border: 2px solid #e9ecef;
+        }
+
+        .config-section h3 {
+            color: #495057;
+            margin-bottom: 15px;
+        }
+
+        .api-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+
+        .api-section h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        input[type="text"],
+        input[type="url"],
+        textarea,
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus,
+        input[type="url"]:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+            font-family: 'Courier New', monospace;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .response {
+            margin-top: 15px;
+            padding: 15px;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            min-height: 50px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .response pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        .success {
+            border-left: 4px solid #28a745;
+            background: #d4edda;
+        }
+
+        .error {
+            border-left: 4px solid #dc3545;
+            background: #f8d7da;
+        }
+
+        .info {
+            border-left: 4px solid #17a2b8;
+            background: #d1ecf1;
+        }
+
+        .loading {
+            border-left: 4px solid #ffc107;
+            background: #fff3cd;
+        }
+
+        .inline-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        @media (max-width: 768px) {
+            .inline-group {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
 <body>
-    <h1>ACME Package Registry</h1>
-    <p>Front-end placeholder for autograder verification.</p>
+    <div class="container">
+        <h1>ACME Package Registry</h1>
+        <p class="subtitle">Trustworthy Model Registry - Testing Interface</p>
+
+        <!-- Configuration Section -->
+        <div class="config-section">
+            <h3>API Configuration</h3>
+            <div class="form-group">
+                <label for="apiBaseUrl">API Base URL:</label>
+                <input type="url" id="apiBaseUrl" placeholder="https://your-api-gateway-url.amazonaws.com/Prod" value="">
+            </div>
+            <div class="form-group">
+                <label for="authToken">X-Authorization Token (optional):</label>
+                <input type="text" id="authToken" placeholder="bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+            </div>
+        </div>
+
+        <!-- Health Check -->
+        <div class="api-section">
+            <h2>1. Health Check</h2>
+            <p>Test if the API is reachable.</p>
+            <button onclick="healthCheck()">Check Health</button>
+            <div id="health-response" class="response"></div>
+        </div>
+
+        <!-- Create Artifact -->
+        <div class="api-section">
+            <h2>2. Create Artifact</h2>
+            <div class="form-group">
+                <label for="create-type">Artifact Type:</label>
+                <select id="create-type">
+                    <option value="model">Model</option>
+                    <option value="dataset">Dataset</option>
+                    <option value="code">Code</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="create-url">URL:</label>
+                <input type="url" id="create-url" placeholder="https://huggingface.co/google-bert/bert-base-uncased">
+            </div>
+            <button onclick="createArtifact()">Create Artifact</button>
+            <div id="create-response" class="response"></div>
+        </div>
+
+        <!-- List Artifacts -->
+        <div class="api-section">
+            <h2>3. List Artifacts</h2>
+            <div class="form-group">
+                <label for="list-query">Query (JSON array of artifact queries):</label>
+                <textarea id="list-query" placeholder='[{"name": "*"}]'>[{"name": "*"}]</textarea>
+            </div>
+            <div class="form-group">
+                <label for="list-offset">Offset (optional):</label>
+                <input type="text" id="list-offset" placeholder="0">
+            </div>
+            <button onclick="listArtifacts()">List Artifacts</button>
+            <div id="list-response" class="response"></div>
+        </div>
+
+        <!-- Get Artifact by Name -->
+        <div class="api-section">
+            <h2>4. Get Artifact by Name</h2>
+            <div class="form-group">
+                <label for="byname-name">Artifact Name:</label>
+                <input type="text" id="byname-name" placeholder="bert-base-uncased">
+            </div>
+            <button onclick="getArtifactByName()">Get Artifact</button>
+            <div id="byname-response" class="response"></div>
+        </div>
+
+        <!-- Get Artifact by ID -->
+        <div class="api-section">
+            <h2>5. Get Artifact by ID</h2>
+            <div class="inline-group">
+                <div class="form-group">
+                    <label for="byid-type">Artifact Type:</label>
+                    <select id="byid-type">
+                        <option value="model">Model</option>
+                        <option value="dataset">Dataset</option>
+                        <option value="code">Code</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="byid-id">Artifact ID:</label>
+                    <input type="text" id="byid-id" placeholder="9078563412">
+                </div>
+            </div>
+            <button onclick="getArtifactById()">Get Artifact</button>
+            <div id="byid-response" class="response"></div>
+        </div>
+
+        <!-- Rate Artifact -->
+        <div class="api-section">
+            <h2>6. Rate Model Artifact</h2>
+            <div class="form-group">
+                <label for="rate-id">Model ID:</label>
+                <input type="text" id="rate-id" placeholder="9078563412">
+            </div>
+            <button onclick="rateArtifact()">Rate Artifact</button>
+            <div id="rate-response" class="response"></div>
+        </div>
+
+        <!-- Reset Registry -->
+        <div class="api-section">
+            <h2>7. Reset Registry</h2>
+            <p style="color: #dc3545; margin-bottom: 10px;"><strong>Warning:</strong> This will delete all artifacts!</p>
+            <button onclick="resetRegistry()" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);">Reset Registry</button>
+            <div id="reset-response" class="response"></div>
+        </div>
+    </div>
+
+    <script>
+        // Helper function to get API base URL
+        function getApiBaseUrl() {
+            const url = document.getElementById('apiBaseUrl').value.trim();
+            if (!url) {
+                alert('Please enter an API Base URL in the configuration section');
+                return null;
+            }
+            return url.endsWith('/') ? url.slice(0, -1) : url;
+        }
+
+        // Helper function to get auth token
+        function getAuthToken() {
+            return document.getElementById('authToken').value.trim();
+        }
+
+        // Helper function to get headers
+        function getHeaders() {
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            const token = getAuthToken();
+            if (token) {
+                headers['X-Authorization'] = token;
+            }
+            return headers;
+        }
+
+        // Helper function to display response
+        function displayResponse(elementId, data, isError = false) {
+            const element = document.getElementById(elementId);
+            element.className = 'response ' + (isError ? 'error' : 'success');
+            element.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+        }
+
+        // Helper function to display loading
+        function displayLoading(elementId) {
+            const element = document.getElementById(elementId);
+            element.className = 'response loading';
+            element.innerHTML = '<p>Loading...</p>';
+        }
+
+        // 1. Health Check
+        async function healthCheck() {
+            const baseUrl = getApiBaseUrl();
+            if (!baseUrl) return;
+
+            displayLoading('health-response');
+            try {
+                const response = await fetch(`${baseUrl}/health`);
+                const data = await response.text();
+                displayResponse('health-response', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    body: data
+                }, !response.ok);
+            } catch (error) {
+                displayResponse('health-response', { error: error.message }, true);
+            }
+        }
+
+        // 2. Create Artifact
+        async function createArtifact() {
+            const baseUrl = getApiBaseUrl();
+            if (!baseUrl) return;
+
+            const artifactType = document.getElementById('create-type').value;
+            const url = document.getElementById('create-url').value.trim();
+
+            if (!url) {
+                alert('Please enter a URL');
+                return;
+            }
+
+            displayLoading('create-response');
+            try {
+                const response = await fetch(`${baseUrl}/artifact/${artifactType}`, {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({ url: url })
+                });
+                const data = await response.json();
+                displayResponse('create-response', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    body: data
+                }, !response.ok);
+            } catch (error) {
+                displayResponse('create-response', { error: error.message }, true);
+            }
+        }
+
+        // 3. List Artifacts
+        async function listArtifacts() {
+            const baseUrl = getApiBaseUrl();
+            if (!baseUrl) return;
+
+            const queryText = document.getElementById('list-query').value.trim();
+            const offset = document.getElementById('list-offset').value.trim();
+
+            let query;
+            try {
+                query = JSON.parse(queryText);
+            } catch (e) {
+                alert('Invalid JSON in query field');
+                return;
+            }
+
+            displayLoading('list-response');
+            try {
+                let url = `${baseUrl}/artifacts`;
+                if (offset) {
+                    url += `?offset=${encodeURIComponent(offset)}`;
+                }
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify(query)
+                });
+                const data = await response.json();
+                displayResponse('list-response', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    body: data
+                }, !response.ok);
+            } catch (error) {
+                displayResponse('list-response', { error: error.message }, true);
+            }
+        }
+
+        // 4. Get Artifact by Name
+        async function getArtifactByName() {
+            const baseUrl = getApiBaseUrl();
+            if (!baseUrl) return;
+
+            const name = document.getElementById('byname-name').value.trim();
+            if (!name) {
+                alert('Please enter an artifact name');
+                return;
+            }
+
+            displayLoading('byname-response');
+            try {
+                const response = await fetch(`${baseUrl}/artifact/byName/${encodeURIComponent(name)}`, {
+                    headers: getHeaders()
+                });
+                const data = await response.json();
+                displayResponse('byname-response', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    body: data
+                }, !response.ok);
+            } catch (error) {
+                displayResponse('byname-response', { error: error.message }, true);
+            }
+        }
+
+        // 5. Get Artifact by ID
+        async function getArtifactById() {
+            const baseUrl = getApiBaseUrl();
+            if (!baseUrl) return;
+
+            const artifactType = document.getElementById('byid-type').value;
+            const id = document.getElementById('byid-id').value.trim();
+
+            if (!id) {
+                alert('Please enter an artifact ID');
+                return;
+            }
+
+            displayLoading('byid-response');
+            try {
+                const response = await fetch(`${baseUrl}/artifacts/${artifactType}/${encodeURIComponent(id)}`, {
+                    headers: getHeaders()
+                });
+                const data = await response.json();
+                displayResponse('byid-response', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    body: data
+                }, !response.ok);
+            } catch (error) {
+                displayResponse('byid-response', { error: error.message }, true);
+            }
+        }
+
+        // 6. Rate Artifact
+        async function rateArtifact() {
+            const baseUrl = getApiBaseUrl();
+            if (!baseUrl) return;
+
+            const id = document.getElementById('rate-id').value.trim();
+            if (!id) {
+                alert('Please enter a model ID');
+                return;
+            }
+
+            displayLoading('rate-response');
+            try {
+                const response = await fetch(`${baseUrl}/artifact/model/${encodeURIComponent(id)}/rate`, {
+                    headers: getHeaders()
+                });
+                const data = await response.json();
+                displayResponse('rate-response', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    body: data
+                }, !response.ok);
+            } catch (error) {
+                displayResponse('rate-response', { error: error.message }, true);
+            }
+        }
+
+        // 7. Reset Registry
+        async function resetRegistry() {
+            if (!confirm('Are you sure you want to reset the registry? This will delete all artifacts!')) {
+                return;
+            }
+
+            const baseUrl = getApiBaseUrl();
+            if (!baseUrl) return;
+
+            displayLoading('reset-response');
+            try {
+                const response = await fetch(`${baseUrl}/reset`, {
+                    method: 'DELETE',
+                    headers: getHeaders()
+                });
+                const data = response.status === 200 ? { message: 'Registry reset successfully' } : await response.json();
+                displayResponse('reset-response', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    body: data
+                }, !response.ok);
+            } catch (error) {
+                displayResponse('reset-response', { error: error.message }, true);
+            }
+        }
+
+        // Load saved configuration on page load
+        window.addEventListener('DOMContentLoaded', function() {
+            const savedUrl = localStorage.getItem('apiBaseUrl');
+            const savedToken = localStorage.getItem('authToken');
+
+            if (savedUrl) {
+                document.getElementById('apiBaseUrl').value = savedUrl;
+            }
+            if (savedToken) {
+                document.getElementById('authToken').value = savedToken;
+            }
+
+            // Save configuration when it changes
+            document.getElementById('apiBaseUrl').addEventListener('blur', function() {
+                localStorage.setItem('apiBaseUrl', this.value.trim());
+            });
+            document.getElementById('authToken').addEventListener('blur', function() {
+                localStorage.setItem('authToken', this.value.trim());
+            });
+        });
+    </script>
 </body>
 </html>
