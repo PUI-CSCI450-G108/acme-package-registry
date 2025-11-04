@@ -208,8 +208,7 @@ def handle_cors_preflight(event: Dict[str, Any]) -> Optional[Dict]:
     """
     if event.get("httpMethod") == "OPTIONS" or event.get("requestContext", {}).get("http", {}).get("method") == "OPTIONS":
         return create_response(200, "")
-
-
+    return None
 # --- Model Evaluation Helpers ---
 
 def convert_to_model_rating(ndjson_result: dict) -> dict:
