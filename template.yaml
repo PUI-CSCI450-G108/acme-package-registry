@@ -117,10 +117,7 @@ Resources:
             - GET
             - HEAD
           Compress: true
-          ForwardedValues:
-            QueryString: false
-            Cookies:
-              Forward: none
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
         CustomErrorResponses:
           - ErrorCode: 403
             ResponseCode: 200
