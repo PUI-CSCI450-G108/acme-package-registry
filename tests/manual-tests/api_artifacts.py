@@ -5,19 +5,16 @@ from typing import Optional
 
 import requests
 
-from api_config import require_api_base_url
+from api_config import API_BASE_URL
 
 
 def test_artifact_endpoint(
     artifact_type: str,
     url: str,
-    api_base_url: Optional[str] = None,
+    api_base_url: str = API_BASE_URL,
     auth_token: Optional[str] = None,
 ) -> None:
     """Test the POST /artifact/{artifact_type} endpoint."""
-
-    if api_base_url is None:
-        api_base_url = require_api_base_url()
 
     endpoint = f"{api_base_url}/artifact/{artifact_type}"
 
@@ -80,13 +77,10 @@ def test_artifact_endpoint(
 
 def test_rate_endpoint(
     artifact_id: str,
-    api_base_url: Optional[str] = None,
+    api_base_url: str = API_BASE_URL,
     auth_token: Optional[str] = None,
 ) -> None:
     """Test the GET /artifact/model/{id}/rate endpoint."""
-
-    if api_base_url is None:
-        api_base_url = require_api_base_url()
 
     endpoint = f"{api_base_url}/artifact/model/{artifact_id}/rate"
 
@@ -146,13 +140,10 @@ def test_rate_endpoint(
 def test_create_and_rate(
     artifact_type: str,
     url: str,
-    api_base_url: Optional[str] = None,
+    api_base_url: str = API_BASE_URL,
     auth_token: Optional[str] = None,
 ) -> None:
     """Create an artifact and then retrieve its rating."""
-
-    if api_base_url is None:
-        api_base_url = require_api_base_url()
 
     create_endpoint = f"{api_base_url}/artifact/{artifact_type}"
 

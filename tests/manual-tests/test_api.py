@@ -5,13 +5,7 @@ import json
 import sys
 
 from api_artifacts import test_create_and_rate
-from api_config import (
-    CONFIG_FILE_PATH,
-    TEST_URLS,
-    is_placeholder,
-    require_api_base_url,
-    set_api_base_url,
-)
+from api_config import API_BASE_URL, TEST_URLS
 from api_health import test_health_endpoint
 from api_list import test_list_artifacts
 from api_reset import test_reset_registry
@@ -31,77 +25,25 @@ def _print_usage() -> None:
     print("\nArtifact types: model, dataset, code")
 
 
-def _prompt_for_api_base_url() -> str:
-    """Interactively ask the user for the API base URL and persist it."""
-
-    if not sys.stdin.isatty():
-        raise RuntimeError(
-            "API base URL is not configured. Set the API_BASE_URL environment variable "
-            f"or add your URL to {CONFIG_FILE_PATH.name}."
-        )
-
-    print("\nPlease provide the full API Gateway URL, e.g.")
-    print("  https://abc123xyz.execute-api.us-east-1.amazonaws.com/dev")
-
-    while True:
-        try:
-            entered = input("\nAPI base URL: ").strip()
-        except EOFError as exc:  # pragma: no cover - interactive convenience
-            raise RuntimeError(
-                "Input closed before the API base URL was provided. "
-                "Set API_BASE_URL or update the configuration file manually."
-            ) from exc
-
-        if not entered:
-            print("\n✗ ERROR: API base URL cannot be empty.")
-            continue
-
-        try:
-            set_api_base_url(entered)
-        except ValueError as exc:
-            print(f"\n✗ ERROR: {exc}")
-            continue
-
-        print(f"\n✓ Saved API base URL to {CONFIG_FILE_PATH}")
-        return entered
-
-
-def _resolve_api_base_url() -> str:
-    """Fetch the configured API base URL, prompting if necessary."""
-
-    try:
-        return require_api_base_url()
-    except RuntimeError as exc:
-        print(f"\n⚠ WARNING: {exc}")
-        print(
-            "You can either set the API_BASE_URL environment variable or store the URL in "
-            f"{CONFIG_FILE_PATH.name}."
-        )
-        return _prompt_for_api_base_url()
-
-
-def _run_comprehensive_suite(api_base_url: str) -> None:
+def _run_comprehensive_suite() -> None:
     print("\nRunning comprehensive test suite...")
 
-    test_health_endpoint(api_base_url=api_base_url)
+    test_health_endpoint()
 
     print("\n" + "=" * 60)
     print("TEST 1: Create Model Artifact")
     print("=" * 60)
-    test_create_and_rate("model", TEST_URLS["model"], api_base_url=api_base_url)
+    test_create_and_rate("model", TEST_URLS["model"])
 
     print("\n" + "=" * 60)
     print("TEST 2: List All Artifacts")
     print("=" * 60)
-    test_list_artifacts([{"name": "*"}], api_base_url=api_base_url)
+    test_list_artifacts([{"name": "*"}])
 
     print("\n" + "=" * 60)
     print("TEST 3: Query Specific Artifact")
     print("=" * 60)
-    test_list_artifacts(
-        [{"name": "gpt2", "types": ["model"]}],
-        api_base_url=api_base_url,
-    )
+    test_list_artifacts([{"name": "gpt2", "types": ["model"]}])
 
 
 def main() -> None:
@@ -111,21 +53,15 @@ def main() -> None:
     print("ACME Package Registry API Test Script")
     print("=" * 60)
 
-    try:
-        base_url = _resolve_api_base_url()
-    except RuntimeError as exc:
-        print(f"\n✗ ERROR: {exc}")
-        sys.exit(1)
-
-    if is_placeholder(base_url):
-        print("\n✗ ERROR: API base URL is still using the placeholder value.")
-        print("  Update the value and re-run the script.")
+    if API_BASE_URL and "YOUR_API_ID" in API_BASE_URL:
+        print("\n⚠ WARNING: Please update API_BASE_URL with your actual API Gateway URL")
+        print("  Example: https://abc123xyz.execute-api.us-east-1.amazonaws.com/dev")
         sys.exit(1)
 
     if len(sys.argv) <= 1:
         print("\nNo command specified. Running comprehensive test suite...")
         print("Use 'python test_api.py health|list|reset|model|dataset|code|all' for specific tests\n")
-        _run_comprehensive_suite(base_url)
+        _run_comprehensive_suite()
         print("\n" + "=" * 60)
         print("Test completed!")
         print("=" * 60)
@@ -134,7 +70,7 @@ def main() -> None:
     command = sys.argv[1]
 
     if command == "health":
-        test_health_endpoint(api_base_url=base_url)
+        test_health_endpoint()
     elif command == "list":
         queries = [{"name": "*"}]
         if len(sys.argv) > 2:
@@ -153,9 +89,9 @@ def main() -> None:
                 print("\n✗ ERROR: Offset must be an integer")
                 sys.exit(1)
 
-        test_list_artifacts(queries, offset, api_base_url=base_url)
+        test_list_artifacts(queries, offset)
     elif command == "reset":
-        test_reset_registry(api_base_url=base_url)
+        test_reset_registry()
     elif command in ["model", "dataset", "code"]:
         artifact_type = command
         url = sys.argv[2] if len(sys.argv) > 2 else TEST_URLS.get(artifact_type)
@@ -165,10 +101,10 @@ def main() -> None:
             print(f"  Usage: python test_api.py {artifact_type} <url>")
             sys.exit(1)
 
-        test_health_endpoint(api_base_url=base_url)
-        test_create_and_rate(artifact_type, url, api_base_url=base_url)
+        test_health_endpoint()
+        test_create_and_rate(artifact_type, url)
     elif command == "all":
-        _run_comprehensive_suite(base_url)
+        _run_comprehensive_suite()
     else:
         _print_usage()
         sys.exit(1)

@@ -5,17 +5,14 @@ from typing import Optional
 
 import requests
 
-from api_config import require_api_base_url
+from api_config import API_BASE_URL
 
 
 def test_reset_registry(
-    api_base_url: Optional[str] = None,
+    api_base_url: str = API_BASE_URL,
     auth_token: Optional[str] = None,
 ) -> None:
     """Test the DELETE /reset endpoint."""
-
-    if api_base_url is None:
-        api_base_url = require_api_base_url()
 
     endpoint = f"{api_base_url}/reset"
 
