@@ -13,7 +13,7 @@ def _require_api_base_url() -> str:
     return api_base_url
 
 
-API_BASE_URL = _require_api_base_url()
+API_BASE_URL = os.getenv("API_BASE_URL")
 
 
 TEST_URLS = {
