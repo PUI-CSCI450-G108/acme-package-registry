@@ -65,7 +65,12 @@ class CloudWatchLogsHandler(logging.Handler):
                 )
                 if self.sequence_token:
                     put_kwargs["sequenceToken"] = self.sequence_token
-                    response = self.client.put_log_events(**put_kwargs)
+                    try:
+                        response = self.client.put_log_events(**put_kwargs)
+                    except ClientError as retry_exc:
+                        # Optionally, log the error or just fail gracefully
+                        # logging.error("CloudWatchLogsHandler retry failed: %s", retry_exc)
+                        return  # Fail gracefully, do not propagate exception
                 else:
                     raise
             else:
