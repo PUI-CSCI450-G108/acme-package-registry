@@ -157,6 +157,23 @@ Resources:
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref ArtifactsBucket
+  
+  #Lambda Function for POST /artifact/search
+  SearchArtifactsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.search_artifacts.handler
+      Description: Search artifacts by regex and version
+      FunctionName: acme-registry-search-artifacts
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ArtifactsBucket
 
 Outputs:
   CreateArtifactFunctionArn:
