@@ -283,6 +283,13 @@ Resources:
       Policies:
         - S3ReadPolicy:
             BucketName: !Ref ArtifactsBucket
+      Events:
+        SearchArtifactsApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /artifact/search
+            Method: POST
 
   # Lambda Function for GET /artifacts/{artifact_type}/{id}
   GetArtifactByIdFunction:
