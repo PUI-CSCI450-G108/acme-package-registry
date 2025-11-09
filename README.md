@@ -29,5 +29,10 @@ A CLI tool to evaluate and score Hugging Face models, datasets, and codebases fo
 - Typer, Pydantic, HuggingFace Hub, GitPython, pytest, black, isort, flake8, mypy
 - See `Makefile` for common tasks
 
+### Structured logging smoke test
+
+To validate the JSON logging pipeline, follow the cross-platform steps in
+[`docs/logging_smoke_test.md`](docs/logging_smoke_test.md).
+
 
 
