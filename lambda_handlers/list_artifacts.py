@@ -4,18 +4,15 @@ Returns paginated metadata for artifacts that match the supplied queries.
 """
 
 import json
-import logging
 import os
+from time import perf_counter
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 from packaging import version as pkg_version
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from packaging.version import InvalidVersion
 
-from lambda_handlers.utils import create_response, list_all_artifacts_from_s3
-
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+from lambda_handlers.utils import create_response, list_all_artifacts_from_s3, log_event
 
 PAGE_SIZE = int(os.getenv("ARTIFACTS_PAGE_SIZE", "50"))
 MAX_RESULTS = int(os.getenv("ARTIFACTS_MAX_RESULTS", "250"))
@@ -162,15 +159,41 @@ def _collect_matches(
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Handle POST /artifacts requests."""
 
+    start_time = perf_counter()
+
     try:
-        logger.info(f"list_artifacts invoked: {json.dumps(event)}")
+        log_event(
+            "info",
+            f"list_artifacts invoked: {json.dumps(event)}",
+            event=event,
+            context=context,
+        )
 
         if event.get("httpMethod") == "OPTIONS":
+            latency = perf_counter() - start_time
+            log_event(
+                "info",
+                "Handled OPTIONS preflight for list_artifacts",
+                event=event,
+                context=context,
+                latency=latency,
+                status=200,
+            )
             return create_response(200, {})
 
         offset_param = event.get("queryStringParameters", {}).get("offset") if event.get("queryStringParameters") else None
         offset = _normalize_offset(offset_param)
         if offset is None:
+            latency = perf_counter() - start_time
+            log_event(
+                "warning",
+                "Invalid offset parameter supplied",
+                event=event,
+                context=context,
+                latency=latency,
+                status=400,
+                error_code="invalid_offset",
+            )
             return create_response(400, {"error": "Invalid offset parameter."})
 
         body_content = event.get("body", "[]")
@@ -180,26 +203,86 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         try:
             queries = json.loads(body_content) if isinstance(body_content, str) else body_content
         except json.JSONDecodeError:
+            latency = perf_counter() - start_time
+            log_event(
+                "warning",
+                "Invalid JSON payload for list_artifacts",
+                event=event,
+                context=context,
+                latency=latency,
+                status=400,
+                error_code="invalid_payload",
+            )
             return create_response(400, {"error": "There is missing field(s) in the artifact_query or it is formed improperly, or is invalid."})
 
         if not isinstance(queries, list) or not queries:
+            latency = perf_counter() - start_time
+            log_event(
+                "warning",
+                "Artifact queries missing or not a list",
+                event=event,
+                context=context,
+                latency=latency,
+                status=400,
+                error_code="invalid_query",
+            )
             return create_response(400, {"error": "There is missing field(s) in the artifact_query or it is formed improperly, or is invalid."})
 
         for query in queries:
             if not isinstance(query, dict) or not isinstance(query.get("name"), str) or not query.get("name"):
+                latency = perf_counter() - start_time
+                log_event(
+                    "warning",
+                    "Invalid artifact query entry",
+                    event=event,
+                    context=context,
+                    latency=latency,
+                    status=400,
+                    error_code="invalid_query_entry",
+                )
                 return create_response(400, {"error": "There is missing field(s) in the artifact_query or it is formed improperly, or is invalid."})
             if "types" in query and (
                 not isinstance(query["types"], list)
                 or not all(isinstance(item, str) and item for item in query["types"])
             ):
+                latency = perf_counter() - start_time
+                log_event(
+                    "warning",
+                    "Invalid artifact types filter",
+                    event=event,
+                    context=context,
+                    latency=latency,
+                    status=400,
+                    error_code="invalid_types_filter",
+                )
                 return create_response(400, {"error": "There is missing field(s) in the artifact_query or it is formed improperly, or is invalid."})
             if "version" in query and query["version"] is not None and not isinstance(query["version"], str):
+                latency = perf_counter() - start_time
+                log_event(
+                    "warning",
+                    "Invalid version filter provided",
+                    event=event,
+                    context=context,
+                    latency=latency,
+                    status=400,
+                    error_code="invalid_version_filter",
+                )
                 return create_response(400, {"error": "There is missing field(s) in the artifact_query or it is formed improperly, or is invalid."})
 
         artifacts_map = list_all_artifacts_from_s3()
         matches = _collect_matches(artifacts_map.values(), queries)
 
         if len(matches) > MAX_RESULTS:
+            latency = perf_counter() - start_time
+            log_event(
+                "warning",
+                "Artifact query exceeded max results",
+                event=event,
+                context=context,
+                latency=latency,
+                status=413,
+                error_code="too_many_results",
+            )
             return create_response(413, {"error": "Too many artifacts returned."})
 
         page = matches[offset : offset + PAGE_SIZE]
@@ -209,8 +292,27 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if next_offset < len(matches):
             headers["offset"] = str(next_offset)
 
+        latency = perf_counter() - start_time
+        log_event(
+            "info",
+            f"Returning {len(page)} artifact(s) for list_artifacts",
+            event=event,
+            context=context,
+            latency=latency,
+            status=200,
+        )
         return create_response(200, page, headers=headers if headers else None)
     except Exception as exc:  # pragma: no cover - guard against unexpected failures
-        logger.error("Unexpected error in list_artifacts", exc_info=True)
+        latency = perf_counter() - start_time
+        log_event(
+            "error",
+            f"Unexpected error in list_artifacts: {exc}",
+            event=event,
+            context=context,
+            latency=latency,
+            status=500,
+            error_code="unexpected_error",
+            exc_info=True,
+        )
         return create_response(500, {"error": f"Internal server error: {str(exc)}"})
 

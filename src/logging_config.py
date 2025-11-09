@@ -1,9 +1,42 @@
+import json
 import logging
 import os
+from datetime import datetime, timezone
 from typing import Optional
 
 import boto3
 from botocore.exceptions import ClientError
+
+
+class JsonFormatter(logging.Formatter):
+    """Serialize log records into structured JSON entries."""
+
+    _EXTRA_FIELDS = (
+        "request_id",
+        "user",
+        "model_id",
+        "endpoint",
+        "latency",
+        "status",
+        "error_code",
+    )
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload = {
+            "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
+            "message": record.getMessage(),
+            "level": record.levelname,
+        }
+
+        for field in self._EXTRA_FIELDS:
+            payload[field] = getattr(record, field, None)
+
+        if record.exc_info:
+            payload["exc_info"] = self.formatException(record.exc_info)
+        if record.stack_info:
+            payload["stack_info"] = self.formatStack(record.stack_info)
+
+        return json.dumps(payload, ensure_ascii=False)
 
 
 class CloudWatchLogsHandler(logging.Handler):
@@ -79,6 +112,14 @@ class CloudWatchLogsHandler(logging.Handler):
         self.sequence_token = response.get("nextSequenceToken")
 
 
+def _determine_level(log_level: int) -> int:
+    if log_level == 0:
+        return logging.CRITICAL
+    if log_level == 1:
+        return logging.INFO
+    return logging.DEBUG
+
+
 def setup_logging():
     # Only configure file logging if LOG_FILE is explicitly provided
     log_file = os.environ.get("LOG_FILE", "acme.log")
@@ -91,20 +132,31 @@ def setup_logging():
         raise SystemExit(f"Invalid log file directory: {parent}")
     
     # Set the appropriate log level based on LOG_LEVEL
+    level = _determine_level(log_level)
+
+    # For level 0, just touch the file without adding any content
     if log_level == 0:
-        level = logging.CRITICAL
-    elif log_level == 1:
-        level = logging.INFO
-    else:  # level 2 or higher
-        level = logging.DEBUG
-        
-    # Configure logging
-    logging.basicConfig(
-        filename=log_file,
-        filemode="a",
-        level=level,
-        format="%(asctime)s %(levelname)s %(message)s",
-    )
+        for handler in logging.root.handlers[:]:
+            logging.root.removeHandler(handler)
+        try:
+            with open(log_file, "a", encoding="utf-8"):
+                pass
+        except Exception:
+            raise SystemExit(f"Unable to open log file: {log_file}")
+        logging.getLogger().setLevel(level)
+        return
+
+    root_logger = logging.getLogger()
+    root_logger.setLevel(level)
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+
+    formatter = JsonFormatter()
+
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
+    file_handler.setLevel(level)
+    file_handler.setFormatter(formatter)
+    root_logger.addHandler(file_handler)
 
     cw_log_group = os.environ.get("CLOUDWATCH_LOG_GROUP")
     cw_log_stream = os.environ.get("CLOUDWATCH_LOG_STREAM")
@@ -119,19 +171,6 @@ def setup_logging():
         except ClientError as exc:
             raise SystemExit(f"Unable to configure CloudWatch logging: {exc}") from exc
 
-        formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
         cw_handler.setLevel(level)
         cw_handler.setFormatter(formatter)
-        logging.getLogger().addHandler(cw_handler)
-
-    # For level 0, just touch the file without adding any content
-    if log_level == 0:
-        # Reset handlers to avoid any logging
-        for handler in logging.root.handlers[:]:
-            logging.root.removeHandler(handler)
-        # Just create/touch the file
-        try:
-            with open(log_file, "a", encoding="utf-8"):
-                pass
-        except Exception:
-            raise SystemExit(f"Unable to open log file: {log_file}")
+        root_logger.addHandler(cw_handler)
