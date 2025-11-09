@@ -93,7 +93,33 @@ jobs:
           WEBSITE_BUCKET="acme-registry-frontend-${ACCOUNT_ID}"
           echo "Syncing front-end to s3://${WEBSITE_BUCKET}/"
           aws s3 sync front-end/ s3://${WEBSITE_BUCKET}/ --delete
-          echo "Front-end deployed successfully!"
+          echo "Front-end synced to S3 successfully!"
+
+      - name: Invalidate CloudFront Cache
+        run: |
+          DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+            --stack-name acme-package-registry \
+            --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' \
+            --output text)
+          echo "Creating CloudFront invalidation for distribution: ${DISTRIBUTION_ID}"
+          aws cloudfront create-invalidation \
+            --distribution-id ${DISTRIBUTION_ID} \
+            --paths "/*"
+          echo "CloudFront cache invalidation initiated!"
+
+      - name: Display URLs
+        run: |
+          echo "Deployment complete! Access your application at:"
+          CLOUDFRONT_URL=$(aws cloudformation describe-stacks \
+            --stack-name acme-package-registry \
+            --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontUrl`].OutputValue' \
+            --output text)
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name acme-package-registry \
+            --query 'Stacks[0].Outputs[?OutputKey==`ApiGatewayUrl`].OutputValue' \
+            --output text)
+          echo "Front-End: ${CLOUDFRONT_URL}"
+          echo "API Gateway: ${API_URL}"
 
       - name: Get Lambda Function ARNs
         run: |
