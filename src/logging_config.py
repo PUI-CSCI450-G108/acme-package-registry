@@ -63,7 +63,6 @@ class CloudWatchLogsHandler(logging.Handler):
                 self.sequence_token = (
                     exc.response.get("expectedSequenceToken")
                     or error.get("expectedSequenceToken")
-                    or error.get("message", "").rsplit(" ", 1)[-1]
                 )
                 if self.sequence_token:
                     put_kwargs["sequenceToken"] = self.sequence_token
