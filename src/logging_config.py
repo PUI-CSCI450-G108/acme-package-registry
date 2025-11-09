@@ -61,8 +61,7 @@ class CloudWatchLogsHandler(logging.Handler):
             code = error.get("Code")
             if code in {"InvalidSequenceTokenException", "DataAlreadyAcceptedException"}:
                 self.sequence_token = (
-                    exc.response.get("expectedSequenceToken")
-                    or error.get("expectedSequenceToken")
+                    error.get("expectedSequenceToken")
                 )
                 if self.sequence_token:
                     put_kwargs["sequenceToken"] = self.sequence_token
