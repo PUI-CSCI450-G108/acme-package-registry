@@ -266,7 +266,6 @@ Resources:
             ApiId: !Ref AcmeApiGateway
             Path: /reset
             Method: DELETE
-            
   #Lambda Function for POST /artifact/search
   SearchArtifactsFunction:
     Type: AWS::Serverless::Function
