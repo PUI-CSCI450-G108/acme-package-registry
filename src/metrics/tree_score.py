@@ -9,8 +9,8 @@ artifact store (S3 bucket). Models not in the registry are ignored.
 
 Scoring:
 - 1.0: No dependencies (trained from scratch) OR all parents have high scores
-- 0.5: Parents declared but none found in registry (unknown quality)
-- 0.25: Parents declared but none in registry (incentivize publishing deps)
+- 0.5: No artifact store available (CLI context; unknown quality)
+- 0.25: Parents declared but none found in registry (incentivize publishing deps)
 - Average of parent scores: If parents found in registry
 """
 
