@@ -7,11 +7,18 @@ class NDJsonOutput(BaseModel):
     """
     Pydantic model for the final NDJSON output structure.
     This schema is derived from Table 1 in the project specification.
+
+    Version history:
+    - 1.0: Original 7-metric formula
+    - 2.0: Updated 10-metric formula (added reproducibility, reviewedness, tree_score)
     """
 
     name: str = Field(..., description="Model/dataset/code name")
     category: str = Field(..., description="Category type [MODEL, DATASET, CODE]")
     net_score: float = Field(..., ge=0, le=1, description="Overall quality score")
+    net_score_version: str = Field(
+        default="2.0", description="Version of the net_score calculation formula"
+    )
     net_score_latency: int = Field(
         ..., ge=0, description="Time to compute net_score in milliseconds"
     )
