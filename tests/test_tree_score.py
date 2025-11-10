@@ -3,7 +3,7 @@ Tests for tree_score metric.
 """
 
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from src.metrics.tree_score import compute_tree_score_metric, clear_cache
 from src.artifact_store import ArtifactStore
 
@@ -77,7 +77,7 @@ def test_tree_score_single_parent():
     # Add parent to registry with high score
     # Note: artifact_id would be generated from generate_artifact_id("model", "parent/model")
     # For testing, we'll use a mock ID
-    with pytest.mock.patch("src.metrics.tree_score.generate_artifact_id") as mock_gen:
+    with patch("src.metrics.tree_score.generate_artifact_id") as mock_gen:
         mock_gen.return_value = "parent-id"
         store.add_artifact("parent-id", {"net_score": 0.9, "base_model": []})
 
@@ -93,7 +93,7 @@ def test_tree_score_multiple_parents():
     model_info = MockModelInfo("test/model", base_model=["parent1/model", "parent2/model"])
     store = MockArtifactStore()
 
-    with pytest.mock.patch("src.metrics.tree_score.generate_artifact_id") as mock_gen:
+    with patch("src.metrics.tree_score.generate_artifact_id") as mock_gen:
         def gen_id(type, url):
             if "parent1" in url:
                 return "parent1-id"
@@ -118,7 +118,7 @@ def test_tree_score_recursive_lineage():
     model_info = MockModelInfo("test/model", base_model="parent/model")
     store = MockArtifactStore()
 
-    with pytest.mock.patch("src.metrics.tree_score.generate_artifact_id") as mock_gen:
+    with patch("src.metrics.tree_score.generate_artifact_id") as mock_gen:
         def gen_id(type, url):
             if "grandparent" in url:
                 return "grandparent-id"
@@ -146,7 +146,7 @@ def test_tree_score_depth_limit():
     model_info = MockModelInfo("test/model", base_model="parent/model")
     store = MockArtifactStore()
 
-    with pytest.mock.patch("src.metrics.tree_score.generate_artifact_id") as mock_gen:
+    with patch("src.metrics.tree_score.generate_artifact_id") as mock_gen:
         # Create a deep chain
         def gen_id(type, url):
             return url.replace("/", "-")
@@ -172,7 +172,7 @@ def test_tree_score_circular_dependency():
     model_info = MockModelInfo("test/model", base_model="parent/model")
     store = MockArtifactStore()
 
-    with pytest.mock.patch("src.metrics.tree_score.generate_artifact_id") as mock_gen:
+    with patch("src.metrics.tree_score.generate_artifact_id") as mock_gen:
         def gen_id(type, url):
             return url.replace("/", "-")
 
@@ -194,7 +194,7 @@ def test_tree_score_missing_net_score_field():
     model_info = MockModelInfo("test/model", base_model="parent/model")
     store = MockArtifactStore()
 
-    with pytest.mock.patch("src.metrics.tree_score.generate_artifact_id") as mock_gen:
+    with patch("src.metrics.tree_score.generate_artifact_id") as mock_gen:
         mock_gen.return_value = "parent-id"
         # Parent exists but has no net_score field
         store.add_artifact("parent-id", {"name": "parent", "type": "model"})
