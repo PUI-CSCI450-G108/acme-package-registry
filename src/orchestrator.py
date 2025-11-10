@@ -12,7 +12,10 @@ from src.metrics.dataset_quality import compute_dataset_quality_metric
 from src.metrics.license import compute_license_metric
 from src.metrics.perf_claims import compute_perf_claims_metric
 from src.metrics.ramp_up import compute_ramp_up_metric
+from src.metrics.reproducibility import compute_reproducibility_metric
+from src.metrics.reviewedness import compute_reviewedness_metric
 from src.metrics.size import compute_size_metric
+from src.metrics.tree_score import compute_tree_score_metric
 from src.models import NDJsonOutput
 from src.net_score import calculate_net_score
 
@@ -40,22 +43,7 @@ def _run_metric_with_timing(
     return result, latency_ms
 
 
-def _compute_reproducibility_metric(model_info: Any) -> float:
-    """Placeholder for reproducibility metric (not yet implemented)."""
-    return 0.0
-
-
-def _compute_reviewedness_metric(model_info: Any) -> float:
-    """Placeholder for reviewedness metric (not yet implemented)."""
-    return 0.0
-
-
-def _compute_tree_score_metric(model_info: Any) -> float:
-    """Placeholder for tree_score metric (not yet implemented)."""
-    return 0.0
-
-
-def calculate_all_metrics(model_info: Any, url: str) -> str:
+def calculate_all_metrics(model_info: Any, url: str, artifact_store=None) -> str:
     """
     Orchestrates the parallel calculation of all metrics for a given model.
     """
@@ -68,9 +56,9 @@ def calculate_all_metrics(model_info: Any, url: str) -> str:
         "dataset_quality": compute_dataset_quality_metric,
         "code_quality": compute_code_quality_metric,
         "performance_claims": compute_perf_claims_metric,
-        "reproducibility": _compute_reproducibility_metric,
-        "reviewedness": _compute_reviewedness_metric,
-        "tree_score": _compute_tree_score_metric,
+        "reproducibility": compute_reproducibility_metric,
+        "reviewedness": compute_reviewedness_metric,
+        "tree_score": lambda mi: compute_tree_score_metric(mi, artifact_store),
     }
 
     results = {}

@@ -7,7 +7,6 @@ Includes S3 operations, response formatting, and model evaluation helpers.
 import os
 import json
 import logging
-import uuid
 import boto3
 from botocore.exceptions import ClientError
 from typing import Dict, Any, Optional, Iterable, List
@@ -29,6 +28,7 @@ logger.setLevel(logging.INFO)
 # Import evaluation logic
 from src.metrics.helpers.pull_model import pull_model_info, canonicalize_hf_url
 from src.orchestrator import calculate_all_metrics
+from src.artifact_utils import generate_artifact_id
 
 # S3 storage for artifacts
 BUCKET_NAME = os.getenv("ARTIFACTS_BUCKET")
@@ -224,8 +224,16 @@ def convert_to_model_rating(ndjson_result: dict) -> dict:
     return result
 
 
-def evaluate_model(url: str) -> dict:
-    """Evaluate a model and return rating dict."""
+def evaluate_model(url: str, artifact_store=None) -> dict:
+    """Evaluate a model and return rating dict.
+
+    Args:
+        url: Model URL to evaluate
+        artifact_store: Optional ArtifactStore for tree_score metric
+
+    Returns:
+        Dictionary containing model rating
+    """
     logger.info(f"Evaluating model: {url}")
 
     url = canonicalize_hf_url(url) if url.startswith("https://huggingface.co/") else url
@@ -235,7 +243,7 @@ def evaluate_model(url: str) -> dict:
     if not model_info:
         raise ValueError("Could not retrieve model information")
 
-    ndjson_output = calculate_all_metrics(model_info, url)
+    ndjson_output = calculate_all_metrics(model_info, url, artifact_store)
     result = json.loads(ndjson_output)
 
     # Post-process name
@@ -252,18 +260,4 @@ def evaluate_model(url: str) -> dict:
     return convert_to_model_rating(result)
 
 
-def generate_artifact_id(artifact_type: str, url: str) -> str:
-    """Generate a deterministic, low-collision artifact ID.
-
-    Rationale:
-    - Previously used MD5 truncated to 12 chars, which increases collision risk.
-    - Use UUIDv5 (namespace-based) for deterministic IDs from (type, canonical URL).
-    - Hyphenated UUID string is allowed by our ID validator and avoids truncation risks.
-
-    Note: We canonicalize Hugging Face URLs to avoid duplicate IDs for equivalent URLs.
-    """
-    normalized_url = (
-        canonicalize_hf_url(url) if isinstance(url, str) and url.startswith("https://huggingface.co/") else url
-    )
-    name = f"{artifact_type}:{normalized_url}"
-    return str(uuid.uuid5(uuid.NAMESPACE_URL, name))
+# generate_artifact_id is now imported from src.artifact_utils
