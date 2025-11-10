@@ -74,10 +74,10 @@ def test_net_score_size_average():
         "tree_score": 0.5,
         "license": 1.0,
     }
-    # Weighted sum = (0.5*0.08 + 0.5*0.12*4 + 1.0*0.12*2 + 0.0*0.12 + 0.5*0.10*3) / 1.10
-    # = (0.04 + 0.24 + 0.24 + 0 + 0.15) / 1.10 = 0.67 / 1.10 ≈ 0.6091
+    # Weighted sum = (0.04 + 0.06 + 0.06 + 0.12 + 0 + 0.12 + 0.06 + 0.05 + 0.05 + 0.05) / 1.10
+    # = 0.61 / 1.10 ≈ 0.5545
     score, _ = calculate_net_score(metrics)
-    assert math.isclose(score, 0.6091, rel_tol=1e-4)
+    assert math.isclose(score, 0.5545, rel_tol=1e-4)
 
 
 def test_net_score_clamped_at_one():
