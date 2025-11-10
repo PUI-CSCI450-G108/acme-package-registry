@@ -2,7 +2,6 @@
 Tests for tree_score metric.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
 from src.metrics.tree_score import compute_tree_score_metric, clear_cache
 from src.artifact_store import ArtifactStore
