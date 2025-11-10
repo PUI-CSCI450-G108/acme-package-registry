@@ -28,7 +28,6 @@ logger.setLevel(logging.INFO)
 # Import evaluation logic
 from src.metrics.helpers.pull_model import pull_model_info, canonicalize_hf_url
 from src.orchestrator import calculate_all_metrics
-from src.artifact_utils import generate_artifact_id
 
 # S3 storage for artifacts
 BUCKET_NAME = os.getenv("ARTIFACTS_BUCKET")
@@ -260,4 +259,3 @@ def evaluate_model(url: str, artifact_store=None) -> dict:
     return convert_to_model_rating(result)
 
 
-# generate_artifact_id is now imported from src.artifact_utils
