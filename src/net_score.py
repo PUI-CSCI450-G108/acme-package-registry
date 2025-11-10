@@ -26,16 +26,16 @@ def calculate_net_score(metrics: Dict[str, Any]) -> Tuple[float, int]:
 
     # Weights as defined in the project plan (Version 2.0)
     weights = {
-        "size_score": 0.08,  # Note: Size score itself is a dict. We'll average it for the net score.
-        "ramp_up_time": 0.12,
-        "bus_factor": 0.12,
-        "dataset_and_code_score": 0.12,
-        "dataset_quality": 0.12,
-        "code_quality": 0.12,
-        "performance_claims": 0.12,
-        "reproducibility": 0.10,
-        "reviewedness": 0.10,
-        "tree_score": 0.10,
+        "size_score": 0.08 / 1.10,  # ≈ 0.0727
+        "ramp_up_time": 0.12 / 1.10,  # ≈ 0.1091
+        "bus_factor": 0.12 / 1.10,
+        "dataset_and_code_score": 0.12 / 1.10,
+        "dataset_quality": 0.12 / 1.10,
+        "code_quality": 0.12 / 1.10,
+        "performance_claims": 0.12 / 1.10,
+        "reproducibility": 0.10 / 1.10,  # ≈ 0.0909
+        "reviewedness": 0.10 / 1.10,
+        "tree_score": 0.10 / 1.10,
     }
 
     license_score = metrics.get("license", 0.0)
