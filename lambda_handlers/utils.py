@@ -260,4 +260,3 @@ def evaluate_model(url: str, artifact_store=None) -> dict:
     return convert_to_model_rating(result)
 
 
-# generate_artifact_id is now imported from src.artifact_utils
