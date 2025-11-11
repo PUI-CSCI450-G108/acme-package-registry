@@ -2,7 +2,7 @@
 openapi: 3.0.2
 info:
   title: ECE 461 - Fall 2025 - Project Phase 2
-  version: 3.4.2
+  version: 3.4.4
   description: |-
     API for ECE 461/Fall 2025/Project Phase 2: A Trustworthy Model Registry"
 
@@ -315,9 +315,13 @@ paths:
                       type: model
                     data:
                       url: https://huggingface.co/google-bert/bert-base-uncased
+                      download_url: https://ec2-10-121-34-12/download/bert-base-uncased
           description:
             Success. Check the id in the returned metadata for the official
             ID.
+        "202":
+          description: |-
+            Artifact ingest accepted but the rating pipeline deferred the evaluation. Use this when the package is stored but rating is performed asynchronously and the artifact is dropped silently if the rating later fails. Subsequent requests to `/rate` or any other endpoint with this artifact id should return 404 until a rating result exists.
         "400":
           description: There is missing field(s) in the artifact_data or it is formed improperly (must include a single url).
         "403":
@@ -822,8 +826,14 @@ components:
           description: Artifact source url used during ingest.
           type: string
           format: uri
+        download_url:
+          description: Direct download link served by your server for retrieving the stored artifact bundle. Present only in responses.
+          type: string
+          format: uri
+          readOnly: true
       example:
         url: https://huggingface.co/openai/whisper-tiny/tree/main
+        download_url: https://ec2-10-121-34-12/download/whisper-tiny
 
     ArtifactType:
       description: "Artifact category."
