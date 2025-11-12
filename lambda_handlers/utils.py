@@ -94,7 +94,15 @@ def log_event(
     }
 
     log_kwargs = dict(kwargs)
-    log_kwargs["extra"] = extra
+    if "extra" in log_kwargs:
+        user_extra = log_kwargs.pop("extra")
+        if not isinstance(user_extra, dict):
+            raise TypeError("The 'extra' argument passed to log_event must be a dict.")
+        # Merge user-provided extra with our extra; function's extra takes precedence
+        merged_extra = {**user_extra, **extra}
+        log_kwargs["extra"] = merged_extra
+    else:
+        log_kwargs["extra"] = extra
     if exc_info:
         log_kwargs["exc_info"] = exc_info
 
