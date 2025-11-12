@@ -283,7 +283,7 @@ def _compute_model_card_completeness(model_info: Any, readme_content: str) -> fl
 
         # Has tags
         tags = getattr(model_info, "tags", None) or []
-        if tags and len(tags) > 0:
+        if tags:
             score += 0.2
 
         # Has license
