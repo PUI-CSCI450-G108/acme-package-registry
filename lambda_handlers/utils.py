@@ -45,7 +45,10 @@ def log_event(
     """Log a structured event enriched with Lambda request metadata."""
 
     if isinstance(level, str):
-        level_value = getattr(logging, level.upper(), logging.INFO)
+        level_upper = level.upper()
+        if not hasattr(logging, level_upper):
+            raise ValueError(f"Invalid log level: {level!r}")
+        level_value = getattr(logging, level_upper)
     else:
         level_value = level
 
