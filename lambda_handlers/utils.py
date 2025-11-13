@@ -400,8 +400,8 @@ def convert_to_model_rating(ndjson_result: dict) -> dict:
 
 def evaluate_model(
     url: str,
-    artifact_store: Optional[S3ArtifactStore] = None,
     *,
+    artifact_store: Optional[S3ArtifactStore] = None,
     event: Optional[Dict[str, Any]] = None,
     context: Optional[Any] = None,
 ) -> dict:
