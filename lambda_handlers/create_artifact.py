@@ -6,6 +6,8 @@ Registers a new artifact and evaluates it.
 
 import json
 from time import perf_counter
+import logging
+import os
 from typing import Dict, Any
 
 from lambda_handlers.utils import (
@@ -17,6 +19,7 @@ from lambda_handlers.utils import (
     MIN_NET_SCORE_THRESHOLD,
     log_event,
 )
+from src.artifact_store import S3ArtifactStore
 
 
 def handler(event: Dict[str, Any], context: Any) -> Dict:
@@ -127,7 +130,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
         # Evaluate the artifact (only models supported for now)
         if artifact_type == 'model':
             try:
-                rating = evaluate_model(url, event=event, context=context)
+                # Create artifact store for tree_score metric
+                bucket_name = os.environ.get('ARTIFACTS_BUCKET')
+                artifact_store = S3ArtifactStore(bucket_name) if bucket_name else None
+
+                rating = evaluate_model(url, artifact_store)
 
                 # Check if rating is acceptable
                 if rating.get("net_score", 0) < MIN_NET_SCORE_THRESHOLD:

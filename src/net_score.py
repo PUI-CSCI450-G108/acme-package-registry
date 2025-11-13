@@ -1,11 +1,20 @@
 import time
 from typing import Any, Dict, Tuple
 
+# Net score formula version
+# Version 1.0: Original 7-metric formula
+# Version 2.0: Updated 10-metric formula (adds reproducibility, reviewedness, tree_score)
+NET_SCORE_VERSION = "2.0"
+
 
 def calculate_net_score(metrics: Dict[str, Any]) -> Tuple[float, int]:
     """
     Calculates the final net score based on the weighted formula
     from the project plan.
+
+    Version 2.0 weights (rebalanced to include 3 new metrics):
+    - All weights sum to 1.0 before applying license multiplier
+    - License score remains a multiplier (0 or 1), not additive
 
     Args:
         metrics: A dictionary containing the results of all sub-metric calculations.
@@ -15,15 +24,18 @@ def calculate_net_score(metrics: Dict[str, Any]) -> Tuple[float, int]:
     """
     start_time = time.perf_counter()
 
-    # Weights as defined in the project plan
+    # Weights as defined in the project plan (Version 2.0)
     weights = {
-        "size_score": 0.1,  # Note: Size score itself is a dict. We'll average it for the net score.
-        "ramp_up_time": 0.15,
-        "bus_factor": 0.15,
-        "dataset_and_code_score": 0.15,
-        "dataset_quality": 0.15,
-        "code_quality": 0.15,
-        "performance_claims": 0.15,
+        "size_score": 0.08 / 1.10,  # ≈ 0.0727
+        "ramp_up_time": 0.12 / 1.10,  # ≈ 0.1091
+        "bus_factor": 0.12 / 1.10,
+        "dataset_and_code_score": 0.12 / 1.10,
+        "dataset_quality": 0.12 / 1.10,
+        "code_quality": 0.12 / 1.10,
+        "performance_claims": 0.12 / 1.10,
+        "reproducibility": 0.10 / 1.10,  # ≈ 0.0909
+        "reviewedness": 0.10 / 1.10,
+        "tree_score": 0.10 / 1.10,
     }
 
     license_score = metrics.get("license", 0.0)
