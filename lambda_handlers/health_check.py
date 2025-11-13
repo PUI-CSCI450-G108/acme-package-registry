@@ -4,13 +4,10 @@ Lambda handler for GET /health
 Simple health check endpoint.
 """
 
-import logging
+from time import perf_counter
 from typing import Any, Dict
 
-from lambda_handlers.utils import BUCKET_NAME, create_response, handle_cors_preflight, s3_client
-
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+from lambda_handlers.utils import BUCKET_NAME, create_response, handle_cors_preflight, s3_client, log_event
 
 
 def handler(event: Dict[str, Any], context: Any) -> Dict:
@@ -19,9 +16,27 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
 
     Simple health check endpoint.
     """
+    start_time = perf_counter()
+
+    log_event(
+        "info",
+        "health_check invoked",
+        event=event,
+        context=context,
+    )
+
     # Handle CORS preflight
     cors_response = handle_cors_preflight(event)
     if cors_response:
+        latency = perf_counter() - start_time
+        log_event(
+            "info",
+            "Handled OPTIONS preflight for health_check",
+            event=event,
+            context=context,
+            latency=latency,
+            status=cors_response.get("statusCode"),
+        )
         return cors_response
 
     # Count artifacts in S3
@@ -33,11 +48,26 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
             )
             artifact_count = response.get("KeyCount", 0)
         except Exception as e:
-            # Ignore errors in artifact count for health check, but log for debugging
-            logger.warning(
+            latency = perf_counter() - start_time
+            log_event(
+                "warning",
                 f"Failed to count artifacts in S3 during health check: {e}",
+                event=event,
+                context=context,
+                latency=latency,
+                status=200,
+                error_code="artifact_count_failed",
                 exc_info=True,
             )
+    latency = perf_counter() - start_time
+    log_event(
+        "info",
+        "health_check succeeded",
+        event=event,
+        context=context,
+        latency=latency,
+        status=200,
+    )
     return create_response(
         200,
         {

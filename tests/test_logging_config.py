@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import tempfile
@@ -78,6 +79,34 @@ def test_logging_writes_to_file(monkeypatch):
         contents = f.read()
     try:
         assert "Hello world" in contents
+    finally:
+        for h in list(logging.root.handlers):
+            h.close()
+        os.remove(log_path)
+
+
+def test_logging_uses_json_formatter(monkeypatch):
+    _reset_logging()
+    fd, log_path = tempfile.mkstemp(prefix="json_", suffix=".log")
+    os.close(fd)
+    monkeypatch.setenv("LOG_FILE", log_path)
+    monkeypatch.setenv("LOG_LEVEL", "1")
+    reload(logging_config)
+    logging_config.setup_logging()
+
+    logging.info("Structured entry", extra={"user": "alice"})
+    for handler in list(logging.root.handlers):
+        handler.flush()
+
+    with open(log_path, "r", encoding="utf-8") as f:
+        contents = [line for line in f.read().splitlines() if line.strip()]
+
+    try:
+        assert contents, "Expected log file to contain at least one entry"
+        payload = json.loads(contents[-1])
+        assert payload["message"] == "Structured entry"
+        assert payload["level"] == "INFO"
+        assert payload["user"] == "alice"
     finally:
         for h in list(logging.root.handlers):
             h.close()
