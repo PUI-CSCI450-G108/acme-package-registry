@@ -134,7 +134,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
                 bucket_name = os.environ.get('ARTIFACTS_BUCKET')
                 artifact_store = S3ArtifactStore(bucket_name) if bucket_name else None
 
-                rating = evaluate_model(url, artifact_store)
+                rating = evaluate_model(url, artifact_store=artifact_store)
 
                 # Check if rating is acceptable
                 if rating.get("net_score", 0) < MIN_NET_SCORE_THRESHOLD:
