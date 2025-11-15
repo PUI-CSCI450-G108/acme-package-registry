@@ -6,18 +6,15 @@ Returns matching artifact *metadata* entries (id, name, version, type).
 """
 
 import json
-import logging
 import re
+from time import perf_counter
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 from packaging import version as pkg_version
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from packaging.version import InvalidVersion
 
-from lambda_handlers.utils import create_response, list_all_artifacts_from_s3
-
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+from lambda_handlers.utils import create_response, list_all_artifacts_from_s3, log_event
 
 
 # -------------------------
@@ -163,11 +160,27 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
       "id_regex": "<optional regex>"
     }
     """
+    start_time = perf_counter()
+
     try:
-        logger.info(f"search_artifacts invoked: {json.dumps(event)}")
+        log_event(
+            "info",
+            f"search_artifacts invoked: {json.dumps(event)}",
+            event=event,
+            context=context,
+        )
 
         # CORS preflight
         if event.get("httpMethod") == "OPTIONS":
+            latency = perf_counter() - start_time
+            log_event(
+                "info",
+                "Handled OPTIONS preflight for search_artifacts",
+                event=event,
+                context=context,
+                latency=latency,
+                status=200,
+            )
             return create_response(200, {})
 
         # Parse JSON body
@@ -175,11 +188,31 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         try:
             body = json.loads(raw) if isinstance(raw, str) else raw
         except json.JSONDecodeError:
+            latency = perf_counter() - start_time
+            log_event(
+                "warning",
+                "Invalid JSON payload for search_artifacts",
+                event=event,
+                context=context,
+                latency=latency,
+                status=400,
+                error_code="invalid_payload",
+            )
             return create_response(400, {"error": "Invalid JSON body."})
 
         name_regex = body.get("name_regex")
         if not isinstance(name_regex, str) or not name_regex.strip():
             # Match your existing wording style for 400s
+            latency = perf_counter() - start_time
+            log_event(
+                "warning",
+                "Missing or invalid name_regex",
+                event=event,
+                context=context,
+                latency=latency,
+                status=400,
+                error_code="invalid_name_regex",
+            )
             return create_response(400, {
                 "error": "There is missing field(s) in the artifact_query or it is formed improperly, or is invalid."
             })
@@ -191,6 +224,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # Validate 'types' if present
         if types is not None:
             if not isinstance(types, list) or not all(isinstance(t, str) and t for t in types):
+                latency = perf_counter() - start_time
+                log_event(
+                    "warning",
+                    "Invalid artifact types filter for search",
+                    event=event,
+                    context=context,
+                    latency=latency,
+                    status=400,
+                    error_code="invalid_types_filter",
+                )
                 return create_response(400, {
                     "error": "There is missing field(s) in the artifact_query or it is formed improperly, or is invalid."
                 })
@@ -209,14 +252,52 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             )
         except ValueError as e:
             # invalid regex -> 400
+            latency = perf_counter() - start_time
+            log_event(
+                "warning",
+                f"Invalid regex provided: {e}",
+                event=event,
+                context=context,
+                latency=latency,
+                status=400,
+                error_code="invalid_regex",
+            )
             return create_response(400, {"error": str(e)})
 
         if not results:
+            latency = perf_counter() - start_time
+            log_event(
+                "warning",
+                "No matching artifacts found",
+                event=event,
+                context=context,
+                latency=latency,
+                status=404,
+                error_code="artifact_not_found",
+            )
             return create_response(404, {"error": "No matching artifacts found."})
 
-        logger.info(f"Found {len(results)} matching artifact(s) for regex '{name_regex}'")
+        latency = perf_counter() - start_time
+        log_event(
+            "info",
+            f"Found {len(results)} matching artifact(s) for regex '{name_regex}'",
+            event=event,
+            context=context,
+            latency=latency,
+            status=200,
+        )
         return create_response(200, results)
 
     except Exception as exc:  # pragma: no cover
-        logger.error("Unexpected error in search_artifacts", exc_info=True)
+        latency = perf_counter() - start_time
+        log_event(
+            "error",
+            f"Unexpected error in search_artifacts: {exc}",
+            event=event,
+            context=context,
+            latency=latency,
+            status=500,
+            error_code="unexpected_error",
+            exc_info=True,
+        )
         return create_response(500, {"error": f"Internal server error: {str(exc)}"})
