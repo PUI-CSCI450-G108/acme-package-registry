@@ -7,7 +7,7 @@ Simple health check endpoint.
 import logging
 from typing import Any, Dict
 
-from lambda_handlers.utils import BUCKET_NAME, create_response, s3_client
+from lambda_handlers.utils import BUCKET_NAME, create_response, handle_cors_preflight, s3_client
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -19,6 +19,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
 
     Simple health check endpoint.
     """
+    # Handle CORS preflight
+    cors_response = handle_cors_preflight(event)
+    if cors_response:
+        return cors_response
+
     # Count artifacts in S3
     artifact_count = 0
     if s3_client and BUCKET_NAME:

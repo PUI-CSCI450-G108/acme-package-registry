@@ -27,6 +27,24 @@ Parameters:
     Default: ""
 
 Resources:
+  # HTTP API Gateway
+  AcmeApiGateway:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowHeaders:
+          - "content-type"
+          - "x-authorization"
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        MaxAge: 600
+
   # S3 Bucket for artifact storage
   ArtifactsBucket:
     Type: AWS::S3::Bucket
@@ -35,32 +53,81 @@ Resources:
       VersioningConfiguration:
         Status: Enabled
 
-  # S3 Bucket for static website hosting
+  # S3 Bucket for static website hosting (via CloudFront)
   WebsiteBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub "acme-registry-frontend-${AWS::AccountId}"
-      WebsiteConfiguration:
-        IndexDocument: index.html
-        ErrorDocument: index.html
       PublicAccessBlockConfiguration:
-        BlockPublicAcls: false
-        BlockPublicPolicy: false
-        IgnorePublicAcls: false
-        RestrictPublicBuckets: false
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
 
-  # Bucket policy for public read access to website
+  # CloudFront Origin Access Control for S3 bucket
+  CloudFrontOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "acme-registry-frontend-oac-${AWS::AccountId}"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # Bucket policy to allow CloudFront OAC access
   WebsiteBucketPolicy:
     Type: AWS::S3::BucketPolicy
+    DependsOn: CloudFrontDistribution
     Properties:
       Bucket: !Ref WebsiteBucket
       PolicyDocument:
         Statement:
-          - Sid: PublicReadGetObject
+          - Sid: AllowCloudFrontServicePrincipal
             Effect: Allow
-            Principal: '*'
+            Principal:
+              Service: cloudfront.amazonaws.com
             Action: 's3:GetObject'
             Resource: !Sub '${WebsiteBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
+
+  # CloudFront Distribution for front-end
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        HttpVersion: http2
+        DefaultRootObject: index.html
+        Comment: ACME Package Registry Front-End Distribution
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt WebsiteBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt CloudFrontOriginAccessControl.Id
+            S3OriginConfig: {}
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+          Compress: true
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 300
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 300
+        PriceClass: PriceClass_100
 
   # Lambda Function for POST /artifact/{artifact_type}
   CreateArtifactFunction:
@@ -77,6 +144,13 @@ Resources:
       Policies:
         - S3WritePolicy:
             BucketName: !Ref ArtifactsBucket
+      Events:
+        CreateArtifactApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /artifact/{artifact_type}
+            Method: POST
 
   # Lambda Function for GET /artifact/model/{id}/rate
   RateArtifactFunction:
@@ -93,6 +167,13 @@ Resources:
       Policies:
         - S3ReadPolicy:
             BucketName: !Ref ArtifactsBucket
+      Events:
+        RateArtifactApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /artifact/model/{id}/rate
+            Method: GET
 
   # Lambda Function for GET /health
   HealthCheckFunction:
@@ -104,6 +185,13 @@ Resources:
       FunctionName: acme-registry-health-check
       Timeout: 10
       MemorySize: 128
+      Events:
+        HealthCheckApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /health
+            Method: GET
 
   # Lambda Function for GET /artifact/byName/{name}
   GetArtifactByNameFunction:
@@ -121,6 +209,13 @@ Resources:
       Policies:
         - S3ReadPolicy:
             BucketName: !Ref ArtifactsBucket
+      Events:
+        GetArtifactByNameApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /artifact/byName/{name}
+            Method: GET
 
   # Lambda Function for POST /artifacts (list/query artifacts, not creation)
   ListArtifactsFunction:
@@ -140,6 +235,13 @@ Resources:
       Policies:
         - S3ReadPolicy:
             BucketName: !Ref ArtifactsBucket
+      Events:
+        ListArtifactsApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /artifacts
+            Method: POST
 
   # Lambda Function for DELETE /reset
   ResetRegistryFunction:
@@ -157,8 +259,14 @@ Resources:
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref ArtifactsBucket
-  
-  #Lambda Function for POST /artifact/search
+      Events:
+        ResetRegistryApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /reset
+            Method: DELETE
+  # Lambda Function for POST /artifact/search
   SearchArtifactsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -174,8 +282,15 @@ Resources:
       Policies:
         - S3ReadPolicy:
             BucketName: !Ref ArtifactsBucket
+      Events:
+        SearchArtifactsApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /artifact/search
+            Method: POST
 
-  #Lambda Function for Get /artifact/{atifact_id}
+  # Lambda Function for GET /artifacts/{artifact_type}/{id}
   GetArtifactByIdFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -191,8 +306,16 @@ Resources:
       Policies:
         - S3ReadPolicy:
             BucketName: !Ref ArtifactsBucket
+      Events:
+        GetArtifactByIdApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /artifacts/{artifact_type}/{id}
+            Method: GET
   
-  # Lambda Function for GET /audit/package-confusion
+
+    # Lambda Function for GET /audit/package-confusion
   PackageConfusionAuditFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -222,6 +345,12 @@ Resources:
             Method: GET
 
 Outputs:
+  ApiGatewayUrl:
+    Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${AcmeApiGateway}.execute-api.${AWS::Region}.amazonaws.com"
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiGatewayUrl"
+
   CreateArtifactFunctionArn:
     Description: "Create Artifact Lambda Function ARN"
     Value: !GetAtt CreateArtifactFunction.Arn
@@ -290,6 +419,14 @@ Outputs:
     Description: "S3 Bucket for static website"
     Value: !Ref WebsiteBucket
 
-  WebsiteUrl:
-    Description: "Static website URL for front-end"
-    Value: !GetAtt WebsiteBucket.WebsiteURL
+  CloudFrontDistributionId:
+    Description: "CloudFront Distribution ID"
+    Value: !Ref CloudFrontDistribution
+    Export:
+      Name: !Sub "${AWS::StackName}-CloudFrontDistributionId"
+
+  CloudFrontUrl:
+    Description: "CloudFront HTTPS URL for front-end"
+    Value: !Sub "https://${CloudFrontDistribution.DomainName}"
+    Export:
+      Name: !Sub "${AWS::StackName}-CloudFrontUrl"
