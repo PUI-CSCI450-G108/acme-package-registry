@@ -191,6 +191,35 @@ Resources:
       Policies:
         - S3ReadPolicy:
             BucketName: !Ref ArtifactsBucket
+  
+  # Lambda Function for GET /audit/package-confusion
+  PackageConfusionAuditFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.package_confusion_audit.handler
+      Description: Detects suspected package confusion / typosquatting uploads
+      FunctionName: acme-registry-package-confusion-audit
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+          # Comma-separated baselines. Tune for your ecosystem.
+          TOP_PACKAGE_NAMES: "requests,numpy,pandas,torch,tensorflow,flask,react,express"
+          AUDIT_SCORE_THRESHOLD: "0.60"
+          MAX_AUDIT_RESULTS: "200"
+          AUDIT_CODE_ONLY: "true"
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ArtifactsBucket
+      Events:
+        PackageConfusionAuditApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /audit/package-confusion
+            Method: GET
 
 Outputs:
   CreateArtifactFunctionArn:
