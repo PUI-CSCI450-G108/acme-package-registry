@@ -137,22 +137,21 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
                 rating = evaluate_model(url, artifact_store=artifact_store)
 
                 # Check if rating is acceptable
-                # TODO: Commented out for autograder testing
-                # if rating.get("net_score", 0) < MIN_NET_SCORE_THRESHOLD:
-                #     latency = perf_counter() - start_time
-                #     log_event(
-                #         "warning",
-                #         "Artifact net_score below threshold",
-                #         event=event,
-                #         context=context,
-                #         model_id=artifact_id,
-                #         latency=latency,
-                #         status=424,
-                #         error_code="rating_below_threshold",
-                #     )
-                #     return create_response(424, {
-                #         "error": f"Artifact is not registered due to the disqualified rating (net_score={rating.get('net_score', 0):.2f} < {MIN_NET_SCORE_THRESHOLD})."
-                #     })
+                if rating.get("net_score", 0) < MIN_NET_SCORE_THRESHOLD:
+                    latency = perf_counter() - start_time
+                    log_event(
+                        "warning",
+                        "Artifact net_score below threshold",
+                        event=event,
+                        context=context,
+                        model_id=artifact_id,
+                        latency=latency,
+                        status=424,
+                        error_code="rating_below_threshold",
+                    )
+                    return create_response(424, {
+                        "error": f"Artifact is not registered due to the disqualified rating (net_score={rating.get('net_score', 0):.2f} < {MIN_NET_SCORE_THRESHOLD})."
+                    })
 
                 name = rating.get("name", "unknown")
             except Exception as e:
