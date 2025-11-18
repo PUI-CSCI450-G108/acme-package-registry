@@ -39,7 +39,7 @@ def _matches_query(metadata: Dict[str, Any], query: Dict[str, Any]) -> bool:
     if types_filter is not None:
         if not isinstance(types_filter, list) or not all(isinstance(t, str) for t in types_filter):
             return False
-        if metadata.get("type") not in types_filter:
+        if types_filter and metadata.get("type") not in types_filter:
             return False
 
     return True
