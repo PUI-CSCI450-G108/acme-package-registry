@@ -178,7 +178,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
         # Create artifact metadata
         metadata = {
             "name": name,
-            "version": "1.0.0",
             "id": artifact_id,
             "type": artifact_type
         }
