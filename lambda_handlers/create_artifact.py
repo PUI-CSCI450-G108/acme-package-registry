@@ -109,6 +109,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
                 "error": "There is missing field(s) in the artifact_data or it is formed improperly (must include a single url)."
             })
 
+        # Extract optional name from request body
+        provided_name = body.get('name', '').strip() if body.get('name') else None
+
         # Generate artifact ID (deterministic UUID based on type+URL)
         artifact_id = generate_artifact_id(artifact_type, url)
 
@@ -153,7 +156,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
                         "error": f"Artifact is not registered due to the disqualified rating (net_score={rating.get('net_score', 0):.2f} < {MIN_NET_SCORE_THRESHOLD})."
                     })
 
-                name = rating.get("name", "unknown")
+                # Use provided name if available, otherwise use name from rating
+                name = provided_name if provided_name else rating.get("name", "unknown")
             except Exception as e:
                 latency = perf_counter() - start_time
                 log_event(
@@ -171,8 +175,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
                     "error": f"Error evaluating artifact: {str(e)}"
                 })
         else:
-            # For dataset/code, just extract name from URL
-            name = url.split("/")[-1] if "/" in url else "unknown"
+            # For dataset/code, use provided name or extract from URL
+            if provided_name:
+                name = provided_name
+            else:
+                name = url.split("/")[-1] if "/" in url else "unknown"
             rating = None
 
         # Create artifact metadata
