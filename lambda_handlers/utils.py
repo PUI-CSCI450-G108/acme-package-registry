@@ -22,9 +22,30 @@ if not os.getenv("HF_TOKEN") and os.getenv("HF_API_TOKEN"):
 if os.getenv("HF_TOKEN") and not os.getenv("HUGGINGFACE_HUB_TOKEN"):
     os.environ["HUGGINGFACE_HUB_TOKEN"] = os.getenv("HF_TOKEN")
 
+def _configure_logger() -> logging.Logger:
+    """Initialize a dedicated Lambda logger shipping to CloudWatch."""
+
+    level_name = os.getenv("LAMBDA_LOG_LEVEL", "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
+
+    log = logging.getLogger("acme_lambda")
+    log.setLevel(level)
+    log.propagate = False  # avoid duplicate entries if root already streams
+
+    if not log.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter('[%(levelname)s] %(message)s'))
+        handler.setLevel(level)
+        log.addHandler(handler)
+    else:
+        for handler in log.handlers:
+            handler.setLevel(level)
+
+    return log
+
+
 # Setup logging for CloudWatch
-logger = logging.getLogger()
-logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
+logger = _configure_logger()
 
 
 LogLevel = Union[int, str]
