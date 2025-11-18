@@ -222,12 +222,6 @@ body {
 .artifact-info {
     color: #666;
     font-size: 14px;
-    margin-bottom: 8px;
-}
-
-.artifact-version {
-    color: #888;
-    font-size: 13px;
     margin-bottom: 12px;
 }
 

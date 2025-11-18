@@ -57,10 +57,6 @@ def _build_detailed_artifact(artifact: Dict[str, Any]) -> Dict[str, Any]:
         "net_score": rating.get("net_score") if rating else None,
     }
 
-    # Add version if available in rating
-    if rating and "net_score_version" in rating:
-        metadata["version"] = rating["net_score_version"]
-
     return {
         "metadata": metadata,
         "data": data
