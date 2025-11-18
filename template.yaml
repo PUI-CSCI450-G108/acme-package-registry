@@ -40,6 +40,9 @@ Resources:
   AcmeApiGateway:
     Type: AWS::Serverless::HttpApi
     Properties:
+      AccessLogSettings:
+        DestinationArn: !GetAtt ApiGatewayAccessLogs.Arn
+        Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength","errorMessage":"$context.error.message","integrationErrorMessage":"$context.integrationErrorMessage"}'
       CorsConfiguration:
         AllowOrigins:
           - "*"
