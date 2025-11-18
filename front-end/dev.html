@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ACME Package Registry</title>
+    <link rel="stylesheet" href="dev-styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>ACME Package Registry</h1>
+        <p class="subtitle">Trustworthy Model Registry - Testing Interface</p>
+
+        <!-- Configuration Section -->
+        <div class="config-section">
+            <h3>API Configuration</h3>
+            <div class="form-group">
+                <label for="apiBaseUrl">API Base URL:</label>
+                <input type="url" id="apiBaseUrl" placeholder="https://your-api-gateway-url.amazonaws.com/Prod" value="">
+            </div>
+            <div class="form-group">
+                <label for="authToken">X-Authorization Token (optional):</label>
+                <input type="text" id="authToken" placeholder="bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+            </div>
+        </div>
+
+        <!-- Health Check -->
+        <div class="api-section">
+            <h2>1. Health Check</h2>
+            <p>Test if the API is reachable.</p>
+            <button onclick="healthCheck()">Check Health</button>
+            <div id="health-response" class="response"></div>
+        </div>
+
+        <!-- Create Artifact -->
+        <div class="api-section">
+            <h2>2. Create Artifact</h2>
+            <div class="form-group">
+                <label for="create-type">Artifact Type:</label>
+                <select id="create-type">
+                    <option value="model">Model</option>
+                    <option value="dataset">Dataset</option>
+                    <option value="code">Code</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="create-url">URL:</label>
+                <input type="url" id="create-url" placeholder="https://huggingface.co/google-bert/bert-base-uncased">
+            </div>
+            <button onclick="createArtifact()">Create Artifact</button>
+            <div id="create-response" class="response"></div>
+        </div>
+
+        <!-- List Artifacts -->
+        <div class="api-section">
+            <h2>3. List Artifacts</h2>
+            <div class="form-group">
+                <label for="list-query">Query (JSON array of artifact queries):</label>
+                <textarea id="list-query" placeholder='[{"name": "*"}]'>[{"name": "*"}]</textarea>
+            </div>
+            <div class="form-group">
+                <label for="list-offset">Offset (optional):</label>
+                <input type="text" id="list-offset" placeholder="0">
+            </div>
+            <button onclick="listArtifacts()">List Artifacts</button>
+            <div id="list-response" class="response"></div>
+        </div>
+
+        <!-- Get Artifact by Name -->
+        <div class="api-section">
+            <h2>4. Get Artifact by Name</h2>
+            <div class="form-group">
+                <label for="byname-name">Artifact Name:</label>
+                <input type="text" id="byname-name" placeholder="bert-base-uncased">
+            </div>
+            <button onclick="getArtifactByName()">Get Artifact</button>
+            <div id="byname-response" class="response"></div>
+        </div>
+
+        <!-- Get Artifact by ID -->
+        <div class="api-section">
+            <h2>5. Get Artifact by ID</h2>
+            <div class="inline-group">
+                <div class="form-group">
+                    <label for="byid-type">Artifact Type:</label>
+                    <select id="byid-type">
+                        <option value="model">Model</option>
+                        <option value="dataset">Dataset</option>
+                        <option value="code">Code</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="byid-id">Artifact ID:</label>
+                    <input type="text" id="byid-id" placeholder="9078563412">
+                </div>
+            </div>
+            <button onclick="getArtifactById()">Get Artifact</button>
+            <div id="byid-response" class="response"></div>
+        </div>
+
+        <!-- Rate Artifact -->
+        <div class="api-section">
+            <h2>6. Rate Model Artifact</h2>
+            <div class="form-group">
+                <label for="rate-id">Model ID:</label>
+                <input type="text" id="rate-id" placeholder="9078563412">
+            </div>
+            <button onclick="rateArtifact()">Rate Artifact</button>
+            <div id="rate-response" class="response"></div>
+        </div>
+
+        <!-- Reset Registry -->
+        <div class="api-section">
+            <h2>7. Reset Registry</h2>
+            <p style="color: #dc3545; margin-bottom: 10px;"><strong>Warning:</strong> This will delete all artifacts!</p>
+            <button onclick="resetRegistry()" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);">Reset Registry</button>
+            <div id="reset-response" class="response"></div>
+        </div>
+    </div>
+
+    <script src="dev-scripts.js"></script>
+</body>
+</html>

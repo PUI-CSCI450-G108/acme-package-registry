@@ -7,114 +7,166 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <!-- Hidden API Configuration -->
+    <input type="hidden" id="apiBaseUrl" value="">
+    <input type="hidden" id="authToken" value="">
+
     <div class="container">
-        <h1>ACME Package Registry</h1>
-        <p class="subtitle">Trustworthy Model Registry - Testing Interface</p>
+        <!-- Header -->
+        <header class="header">
+            <h1>ACME Package Registry</h1>
+            <p class="subtitle">Trustworthy Model, Dataset & Code Repository</p>
+        </header>
 
-        <!-- Configuration Section -->
-        <div class="config-section">
-            <h3>API Configuration</h3>
-            <div class="form-group">
-                <label for="apiBaseUrl">API Base URL:</label>
-                <input type="url" id="apiBaseUrl" placeholder="https://your-api-gateway-url.amazonaws.com/Prod" value="">
+        <!-- Search and Actions Bar -->
+        <div class="actions-bar">
+            <div class="search-container">
+                <input
+                    type="text"
+                    id="search-input"
+                    placeholder="Search by name or ID"
+                    class="search-input"
+                >
+                <button onclick="searchArtifacts()" class="search-btn">Search</button>
             </div>
-            <div class="form-group">
-                <label for="authToken">X-Authorization Token (optional):</label>
-                <input type="text" id="authToken" placeholder="bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
-            </div>
+            <button onclick="showAddArtifactModal()" class="add-btn">+ Add Artifact</button>
         </div>
 
-        <!-- Health Check -->
-        <div class="api-section">
-            <h2>1. Health Check</h2>
-            <p>Test if the API is reachable.</p>
-            <button onclick="healthCheck()">Check Health</button>
-            <div id="health-response" class="response"></div>
+        <!-- Loading State -->
+        <div id="loading" class="loading-state" style="display: none;">
+            <div class="spinner"></div>
+            <p>Loading artifacts...</p>
         </div>
 
-        <!-- Create Artifact -->
-        <div class="api-section">
-            <h2>2. Create Artifact</h2>
-            <div class="form-group">
-                <label for="create-type">Artifact Type:</label>
-                <select id="create-type">
-                    <option value="model">Model</option>
-                    <option value="dataset">Dataset</option>
-                    <option value="code">Code</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="create-url">URL:</label>
-                <input type="url" id="create-url" placeholder="https://huggingface.co/google-bert/bert-base-uncased">
-            </div>
-            <button onclick="createArtifact()">Create Artifact</button>
-            <div id="create-response" class="response"></div>
+        <!-- Error State -->
+        <div id="error-state" class="error-state" style="display: none;">
+            <p id="error-message"></p>
         </div>
 
-        <!-- List Artifacts -->
-        <div class="api-section">
-            <h2>3. List Artifacts</h2>
-            <div class="form-group">
-                <label for="list-query">Query (JSON array of artifact queries):</label>
-                <textarea id="list-query" placeholder='[{"name": "*"}]'>[{"name": "*"}]</textarea>
-            </div>
-            <div class="form-group">
-                <label for="list-offset">Offset (optional):</label>
-                <input type="text" id="list-offset" placeholder="0">
-            </div>
-            <button onclick="listArtifacts()">List Artifacts</button>
-            <div id="list-response" class="response"></div>
+        <!-- Empty State -->
+        <div id="empty-state" class="empty-state" style="display: none;">
+            <h2>No artifacts found</h2>
+            <p>Get started by adding your first artifact!</p>
         </div>
 
-        <!-- Get Artifact by Name -->
-        <div class="api-section">
-            <h2>4. Get Artifact by Name</h2>
-            <div class="form-group">
-                <label for="byname-name">Artifact Name:</label>
-                <input type="text" id="byname-name" placeholder="bert-base-uncased">
-            </div>
-            <button onclick="getArtifactByName()">Get Artifact</button>
-            <div id="byname-response" class="response"></div>
+        <!-- Artifacts Grid -->
+        <div id="artifacts-grid" class="artifacts-grid">
+            <!-- Cards will be populated here by JavaScript -->
         </div>
 
-        <!-- Get Artifact by ID -->
-        <div class="api-section">
-            <h2>5. Get Artifact by ID</h2>
-            <div class="inline-group">
+        <!-- Pagination -->
+        <div id="pagination" class="pagination" style="display: none;">
+            <button onclick="loadPage('prev')" id="prev-btn" class="pagination-btn" disabled>Previous</button>
+            <span id="page-info">Page 1</span>
+            <button onclick="loadPage('next')" id="next-btn" class="pagination-btn">Next</button>
+        </div>
+    </div>
+
+    <!-- Add Artifact Modal -->
+    <div id="add-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add New Artifact</h2>
+                <button onclick="closeAddModal()" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
                 <div class="form-group">
-                    <label for="byid-type">Artifact Type:</label>
-                    <select id="byid-type">
+                    <label for="artifact-type">Artifact Type:</label>
+                    <select id="artifact-type" class="input-field">
                         <option value="model">Model</option>
                         <option value="dataset">Dataset</option>
                         <option value="code">Code</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="byid-id">Artifact ID:</label>
-                    <input type="text" id="byid-id" placeholder="9078563412">
+                    <label for="artifact-url">URL:</label>
+                    <input
+                        type="url"
+                        id="artifact-url"
+                        class="input-field"
+                        placeholder="https://huggingface.co/google-bert/bert-base-uncased"
+                    >
+                </div>
+                <div id="add-error" class="modal-error" style="display: none;"></div>
+                <div id="add-success" class="modal-success" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeAddModal()" class="btn-secondary">Cancel</button>
+                <button onclick="createArtifact()" class="btn-primary" id="submit-btn">Add Artifact</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Artifact Detail Modal -->
+    <div id="detail-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="detail-name">Artifact Details</h2>
+                <button onclick="closeDetailModal()" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="detail-row">
+                    <span class="detail-label">Type:</span>
+                    <span id="detail-type" class="badge"></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">ID:</span>
+                    <span id="detail-id"></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Version:</span>
+                    <span id="detail-version"></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Source URL:</span>
+                    <a id="detail-url" href="#" target="_blank" class="detail-link"></a>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Quality Score:</span>
+                    <div class="score-container">
+                        <div class="score-bar">
+                            <div id="detail-score-fill" class="score-fill"></div>
+                        </div>
+                        <span id="detail-score-text" class="score-text"></span>
+                    </div>
                 </div>
             </div>
-            <button onclick="getArtifactById()">Get Artifact</button>
-            <div id="byid-response" class="response"></div>
-        </div>
-
-        <!-- Rate Artifact -->
-        <div class="api-section">
-            <h2>6. Rate Model Artifact</h2>
-            <div class="form-group">
-                <label for="rate-id">Model ID:</label>
-                <input type="text" id="rate-id" placeholder="9078563412">
+            <div class="modal-footer">
+                <button onclick="closeDetailModal()" class="btn-primary">Close</button>
             </div>
-            <button onclick="rateArtifact()">Rate Artifact</button>
-            <div id="rate-response" class="response"></div>
         </div>
+    </div>
 
-        <!-- Reset Registry -->
-        <div class="api-section">
-            <h2>7. Reset Registry</h2>
-            <p style="color: #dc3545; margin-bottom: 10px;"><strong>Warning:</strong> This will delete all artifacts!</p>
-            <button onclick="resetRegistry()" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);">Reset Registry</button>
-            <div id="reset-response" class="response"></div>
+    <!-- Configuration Modal (for first-time setup) -->
+    <div id="config-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>API Configuration</h2>
+            </div>
+            <div class="modal-body">
+                <p>Please configure your API settings to continue.</p>
+                <div class="form-group">
+                    <label for="config-api-url">API Base URL:</label>
+                    <input
+                        type="url"
+                        id="config-api-url"
+                        class="input-field"
+                        placeholder="https://your-api-gateway-url.amazonaws.com/Prod"
+                    >
+                </div>
+                <div class="form-group">
+                    <label for="config-auth-token">X-Authorization Token (optional):</label>
+                    <input
+                        type="text"
+                        id="config-auth-token"
+                        class="input-field"
+                        placeholder="bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    >
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="saveConfiguration()" class="btn-primary">Save Configuration</button>
+            </div>
         </div>
     </div>
 
