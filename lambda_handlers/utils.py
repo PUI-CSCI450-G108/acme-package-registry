@@ -22,8 +22,9 @@ if not os.getenv("HF_TOKEN") and os.getenv("HF_API_TOKEN"):
 if os.getenv("HF_TOKEN") and not os.getenv("HUGGINGFACE_HUB_TOKEN"):
     os.environ["HUGGINGFACE_HUB_TOKEN"] = os.getenv("HF_TOKEN")
 
-# Setup logging
+# Setup logging for CloudWatch
 logger = logging.getLogger()
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 
 
 LogLevel = Union[int, str]
