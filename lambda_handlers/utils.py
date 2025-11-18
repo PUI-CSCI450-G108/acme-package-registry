@@ -24,12 +24,7 @@ if os.getenv("HF_TOKEN") and not os.getenv("HUGGINGFACE_HUB_TOKEN"):
 
 # Setup logging for CloudWatch
 logger = logging.getLogger()
-if logger.hasHandlers():
-    # Lambda already configured handlers, just set the level
-    logger.setLevel(logging.INFO)
-else:
-    # Local/testing environment
-    logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 
 
 LogLevel = Union[int, str]
