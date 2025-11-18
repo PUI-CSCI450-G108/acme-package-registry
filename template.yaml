@@ -27,12 +27,22 @@ Parameters:
     Default: ""
 
 Resources:
+  # CloudWatch Log Group for API Gateway Access Logs
+  ApiGatewayAccessLogs:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: /aws/apigateway/acme-registry-access-logs
+      RetentionInDays: 7
+
   # HTTP API Gateway
   AcmeApiGateway:
     Type: AWS::Serverless::HttpApi
+    DependsOn: ApiGatewayAccessLogs
     Properties:
       AccessLogSettings:
-        DestinationArn: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/apigateway/acme-registry-access-logs'
+        DestinationArn: !GetAtt ApiGatewayAccessLogs.Arn
         Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength","errorMessage":"$context.error.message","integrationErrorMessage":"$context.integrationErrorMessage"}'
       CorsConfiguration:
         AllowOrigins:
