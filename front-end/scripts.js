@@ -125,7 +125,7 @@ async function loadArtifacts() {
         const baseUrl = getApiBaseUrl();
         const offset = currentPage * ITEMS_PER_PAGE;
 
-        const response = await fetch(`${baseUrl}/artifacts?offset=${offset}`, {
+        const response = await fetch(`${baseUrl}/artifacts/detailed?offset=${offset}`, {
             method: 'POST',
             headers: getHeaders(),
             body: JSON.stringify([{ name: '*' }])
@@ -179,7 +179,6 @@ function createArtifactCard(artifact) {
     const data = artifact.data || {};
     const name = metadata.name || 'Unknown';
     const type = metadata.type || 'model';
-    const version = metadata.version || 'N/A';
     const id = metadata.id || 'N/A';
     const netScore = data.net_score !== undefined ? data.net_score : null;
 
@@ -189,7 +188,6 @@ function createArtifactCard(artifact) {
             <span class="badge ${type}">${type}</span>
         </div>
         <div class="artifact-info">ID: ${escapeHtml(String(id))}</div>
-        <div class="artifact-version">Version: ${escapeHtml(version)}</div>
         ${netScore !== null ? `
             <div class="score-container">
                 <div class="score-bar">
@@ -257,18 +255,10 @@ async function searchArtifacts() {
     try {
         const baseUrl = getApiBaseUrl();
 
-        // Determine if it's a version search (contains numbers and dots like 1.0.0)
-        const versionPattern = /^\d+(\.\d+)*$/;
-        const isVersion = versionPattern.test(searchInput);
-
-        // Build search query
-        const searchBody = {};
-        if (isVersion) {
-            searchBody.version = searchInput;
-        } else {
-            // Try to match by name or ID
-            searchBody.name = searchInput;
-        }
+        // Build search query - search by name or ID
+        const searchBody = {
+            name: searchInput
+        };
 
         currentSearchQuery = searchBody;
 
@@ -402,7 +392,6 @@ function showArtifactDetail(artifact) {
     document.getElementById('detail-type').textContent = metadata.type || 'model';
     document.getElementById('detail-type').className = `badge ${metadata.type || 'model'}`;
     document.getElementById('detail-id').textContent = metadata.id || 'N/A';
-    document.getElementById('detail-version').textContent = metadata.version || 'N/A';
 
     const url = data.url || '#';
     const urlElement = document.getElementById('detail-url');
