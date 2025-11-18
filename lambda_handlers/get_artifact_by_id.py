@@ -84,7 +84,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             latency = perf_counter() - start_time
             log_event(
                 "warning",
-                "Artifact not found when fetching by id",
+                f"Artifact not found when fetching by id: {artifact_id}",
                 event=event,
                 context=context,
                 model_id=artifact_id,
@@ -99,7 +99,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             latency = perf_counter() - start_time
             log_event(
                 "warning",
-                "Artifact type mismatch for requested id",
+                f"Artifact type mismatch for id {artifact_id}: requested={artifact_type}, actual={stored_type}",
                 event=event,
                 context=context,
                 model_id=artifact_id,
