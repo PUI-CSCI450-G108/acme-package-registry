@@ -1,7 +1,7 @@
 """
-Lambda handler for POST /artifact/byRegEx
+Lambda handler for POST /artifact/search
 
-Searches for artifacts using regex over artifact names.
+Searches for artifacts using regex (name and/or id) and semantic version constraints.
 Returns matching artifact *metadata* entries (id, name, version, type).
 """
 
@@ -150,11 +150,14 @@ def _search_artifacts_with_regex_and_version(
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
-    Lambda handler for POST /artifact/byRegEx
+    Lambda handler for POST /artifact/search
 
     Request body (JSON):
     {
-      "regex": "<required regex>"
+      "name_regex": "<required regex>",
+      "version": "<optional version spec>",
+      "types": ["model","dataset","code"],     # optional
+      "id_regex": "<optional regex>"
     }
     """
     start_time = perf_counter()
@@ -195,36 +198,57 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 status=400,
                 error_code="invalid_payload",
             )
-            return create_response(400, {"error": "There is missing field(s) in the artifact_regex or it is formed improperly, or is invalid"})
+            return create_response(400, {"error": "Invalid JSON body."})
 
-        # Extract regex from request body (per OpenAPI spec)
-        regex = body.get("regex")
-        if not isinstance(regex, str) or not regex.strip():
+        name_regex = body.get("name_regex")
+        if not isinstance(name_regex, str) or not name_regex.strip():
+            # Match your existing wording style for 400s
             latency = perf_counter() - start_time
             log_event(
                 "warning",
-                "Missing or invalid regex",
+                "Missing or invalid name_regex",
                 event=event,
                 context=context,
                 latency=latency,
                 status=400,
-                error_code="invalid_regex",
+                error_code="invalid_name_regex",
             )
             return create_response(400, {
-                "error": "There is missing field(s) in the artifact_regex or it is formed improperly, or is invalid"
+                "error": "There is missing field(s) in the artifact_query or it is formed improperly, or is invalid."
             })
+
+        version_expr = body.get("version")
+        id_regex = body.get("id_regex")
+        types = body.get("types")
+
+        # Validate 'types' if present
+        if types is not None:
+            if not isinstance(types, list) or not all(isinstance(t, str) and t for t in types):
+                latency = perf_counter() - start_time
+                log_event(
+                    "warning",
+                    "Invalid artifact types filter for search",
+                    event=event,
+                    context=context,
+                    latency=latency,
+                    status=400,
+                    error_code="invalid_types_filter",
+                )
+                return create_response(400, {
+                    "error": "There is missing field(s) in the artifact_query or it is formed improperly, or is invalid."
+                })
 
         # Load artifacts from S3
         artifacts_map = list_all_artifacts_from_s3()
 
-        # Execute search over artifact names
+        # Execute search
         try:
             results = _search_artifacts_with_regex_and_version(
                 artifacts_map.values(),
-                name_regex=regex,
-                version_expr=None,
-                types=None,
-                id_regex=None,
+                name_regex=name_regex,
+                version_expr=version_expr,
+                types=types,
+                id_regex=id_regex,
             )
         except ValueError as e:
             # invalid regex -> 400
@@ -238,7 +262,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 status=400,
                 error_code="invalid_regex",
             )
-            return create_response(400, {"error": "There is missing field(s) in the artifact_regex or it is formed improperly, or is invalid"})
+            return create_response(400, {"error": str(e)})
 
         if not results:
             latency = perf_counter() - start_time
@@ -251,12 +275,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 status=404,
                 error_code="artifact_not_found",
             )
-            return create_response(404, {"error": "No artifact found under this regex."})
+            return create_response(404, {"error": "No matching artifacts found."})
 
         latency = perf_counter() - start_time
         log_event(
             "info",
-            f"Found {len(results)} matching artifact(s) for regex '{regex}'",
+            f"Found {len(results)} matching artifact(s) for regex '{name_regex}'",
             event=event,
             context=context,
             latency=latency,
