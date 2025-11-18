@@ -4,6 +4,33 @@ let currentSearchQuery = null;
 const ITEMS_PER_PAGE = 12;
 
 // ============================================
+// Security Utilities
+// ============================================
+
+function isValidUrl(url) {
+    if (!url || url === '#') return true;
+
+    try {
+        const parsed = new URL(url);
+        // Only allow http and https protocols
+        return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    } catch (e) {
+        return false;
+    }
+}
+
+function sanitizeUrl(url) {
+    if (!url || url === '#') return '#';
+
+    if (isValidUrl(url)) {
+        return url;
+    }
+
+    // If invalid, return a safe placeholder
+    return '#';
+}
+
+// ============================================
 // Configuration Management
 // ============================================
 
@@ -280,18 +307,6 @@ async function searchArtifacts() {
     }
 }
 
-// Handle Enter key in search input
-document.addEventListener('DOMContentLoaded', function() {
-    const searchInput = document.getElementById('search-input');
-    if (searchInput) {
-        searchInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                currentPage = 0;
-                searchArtifacts();
-            }
-        });
-    }
-});
 
 // ============================================
 // Add Artifact Modal
@@ -389,7 +404,7 @@ function showArtifactDetail(artifact) {
     const url = data.url || '#';
     const urlElement = document.getElementById('detail-url');
     urlElement.textContent = url;
-    urlElement.href = url;
+    urlElement.href = sanitizeUrl(url);
 
     const netScore = data.net_score !== undefined ? data.net_score : 0;
     document.getElementById('detail-score-fill').style.width = `${netScore * 100}%`;
@@ -416,6 +431,17 @@ window.addEventListener('DOMContentLoaded', function() {
     }
     if (savedToken) {
         document.getElementById('config-auth-token').value = savedToken;
+    }
+
+    // Handle Enter key in search input
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                currentPage = 0;
+                searchArtifacts();
+            }
+        });
     }
 
     // Load artifacts on page load
