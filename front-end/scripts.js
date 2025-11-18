@@ -213,8 +213,11 @@ function escapeHtml(text) {
 // Pagination
 // ============================================
 
-function updatePaginationButtons() {
+function updatePaginationButtons(totalArtifacts) {
     document.getElementById('prev-btn').disabled = currentPage === 0;
+    // Disable next button if on last page
+    const isLastPage = ((currentPage + 1) * ITEMS_PER_PAGE) >= totalArtifacts;
+    document.getElementById('next-btn').disabled = isLastPage;
     document.getElementById('page-info').textContent = `Page ${currentPage + 1}`;
 }
 
