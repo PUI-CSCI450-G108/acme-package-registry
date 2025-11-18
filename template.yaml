@@ -142,7 +142,7 @@ Resources:
           HF_TOKEN: !Ref HuggingFaceToken
           ARTIFACTS_BUCKET: !Ref ArtifactsBucket
       Policies:
-        - S3WritePolicy:
+        - S3CrudPolicy:
             BucketName: !Ref ArtifactsBucket
       Events:
         CreateArtifactApi:
@@ -266,13 +266,13 @@ Resources:
             ApiId: !Ref AcmeApiGateway
             Path: /reset
             Method: DELETE
-  # Lambda Function for POST /artifact/search
+  # Lambda Function for POST /artifact/byRegEx
   SearchArtifactsFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: .
       Handler: lambda_handlers.search_artifacts.handler
-      Description: Search artifacts by regex and version
+      Description: Search artifacts by regex
       FunctionName: acme-registry-search-artifacts
       Timeout: 30
       MemorySize: 256
@@ -287,7 +287,7 @@ Resources:
           Type: HttpApi
           Properties:
             ApiId: !Ref AcmeApiGateway
-            Path: /artifact/search
+            Path: /artifact/byRegEx
             Method: POST
 
   # Lambda Function for GET /artifacts/{artifact_type}/{id}
