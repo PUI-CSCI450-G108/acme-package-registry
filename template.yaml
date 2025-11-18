@@ -243,6 +243,32 @@ Resources:
             Path: /artifacts
             Method: POST
 
+  # Lambda Function for POST /artifacts/detailed (list with full data including ratings)
+  ListArtifactsDetailedFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.list_artifacts_detailed.handler
+      Description: List artifacts with detailed information including ratings
+      FunctionName: acme-registry-list-artifacts-detailed
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+          ARTIFACTS_PAGE_SIZE: "50"
+          ARTIFACTS_MAX_RESULTS: "250"
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ArtifactsBucket
+      Events:
+        ListArtifactsDetailedApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /artifacts/detailed
+            Method: POST
+
   # Lambda Function for DELETE /reset
   ResetRegistryFunction:
     Type: AWS::Serverless::Function
@@ -374,6 +400,16 @@ Outputs:
   ListArtifactsFunctionName:
     Description: "List Artifacts Lambda Function Name"
     Value: !Ref ListArtifactsFunction
+
+  ListArtifactsDetailedFunctionArn:
+    Description: "List Artifacts Detailed Lambda Function ARN"
+    Value: !GetAtt ListArtifactsDetailedFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ListArtifactsDetailedFunctionArn"
+
+  ListArtifactsDetailedFunctionName:
+    Description: "List Artifacts Detailed Lambda Function Name"
+    Value: !Ref ListArtifactsDetailedFunction
 
   ResetRegistryFunctionArn:
     Description: "Reset Registry Lambda Function ARN"

@@ -125,7 +125,7 @@ async function loadArtifacts() {
         const baseUrl = getApiBaseUrl();
         const offset = currentPage * ITEMS_PER_PAGE;
 
-        const response = await fetch(`${baseUrl}/artifacts?offset=${offset}`, {
+        const response = await fetch(`${baseUrl}/artifacts/detailed?offset=${offset}`, {
             method: 'POST',
             headers: getHeaders(),
             body: JSON.stringify([{ name: '*' }])
