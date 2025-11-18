@@ -7,7 +7,6 @@ Returns metadata for all artifacts matching the provided name.
 import json
 from time import perf_counter
 from typing import Dict, Any
-from urllib.parse import unquote
 
 from lambda_handlers.utils import (
     create_response,
@@ -67,9 +66,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
             return create_response(400, {
                 "error": "There is missing field(s) in the artifact_name or it is formed improperly, or is invalid."
             })
-
-        # URL decode the name parameter
-        name = unquote(name)
 
         # Search for artifacts with matching name in S3
         all_artifacts = list_all_artifacts_from_s3()
