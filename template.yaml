@@ -27,10 +27,23 @@ Parameters:
     Default: ""
 
 Resources:
+  # CloudWatch Log Group for API Gateway Access Logs
+  ApiGatewayAccessLogs:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      LogGroupName: /aws/apigateway/acme-registry-access-logs
+      RetentionInDays: 7
+
   # HTTP API Gateway
   AcmeApiGateway:
     Type: AWS::Serverless::HttpApi
+    DependsOn: ApiGatewayAccessLogs
     Properties:
+      AccessLogSettings:
+        DestinationArn: !GetAtt ApiGatewayAccessLogs.Arn
+        Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","routeKey":"$context.routeKey","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength","errorMessage":"$context.error.message","integrationErrorMessage":"$context.integrationErrorMessage"}'
       CorsConfiguration:
         AllowOrigins:
           - "*"
@@ -99,7 +112,7 @@ Resources:
       DistributionConfig:
         Enabled: true
         HttpVersion: http2
-        DefaultRootObject: index.html
+        DefaultRootObject: login.html
         Comment: ACME Package Registry Front-End Distribution
         Origins:
           - Id: S3Origin
@@ -121,11 +134,11 @@ Resources:
         CustomErrorResponses:
           - ErrorCode: 403
             ResponseCode: 200
-            ResponsePagePath: /index.html
+            ResponsePagePath: /login.html
             ErrorCachingMinTTL: 300
           - ErrorCode: 404
             ResponseCode: 200
-            ResponsePagePath: /index.html
+            ResponsePagePath: /login.html
             ErrorCachingMinTTL: 300
         PriceClass: PriceClass_100
 
@@ -193,24 +206,6 @@ Resources:
             Path: /health
             Method: GET
 
-  # Lambda Function for GET /health
-  HealthCheckLiveFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: .
-      Handler: lambda_handlers.health_check_live.handler
-      Description: Health check live endpoint
-      FunctionName: acme-registry-health-check
-      Timeout: 10
-      MemorySize: 128
-      Events:
-        HealthCheckApi:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref AcmeApiGateway
-            Path: /health/live
-            Method: GET
-
   # Lambda Function for GET /artifact/byName/{name}
   GetArtifactByNameFunction:
     Type: AWS::Serverless::Function
@@ -259,6 +254,32 @@ Resources:
           Properties:
             ApiId: !Ref AcmeApiGateway
             Path: /artifacts
+            Method: POST
+
+  # Lambda Function for POST /artifacts/detailed (list with full data including ratings)
+  ListArtifactsDetailedFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.list_artifacts_detailed.handler
+      Description: List artifacts with detailed information including ratings
+      FunctionName: acme-registry-list-artifacts-detailed
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+          ARTIFACTS_PAGE_SIZE: "50"
+          ARTIFACTS_MAX_RESULTS: "250"
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ArtifactsBucket
+      Events:
+        ListArtifactsDetailedApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /artifacts/detailed
             Method: POST
 
   # Lambda Function for DELETE /reset
@@ -331,6 +352,36 @@ Resources:
             ApiId: !Ref AcmeApiGateway
             Path: /artifacts/{artifact_type}/{id}
             Method: GET
+  
+
+    # Lambda Function for GET /audit/package-confusion
+  PackageConfusionAuditFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.package_confusion_audit.handler
+      Description: Detects suspected package confusion / typosquatting uploads
+      FunctionName: acme-registry-package-confusion-audit
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+          # Comma-separated baselines. Tune for your ecosystem.
+          TOP_PACKAGE_NAMES: "requests,numpy,pandas,torch,tensorflow,flask,react,express"
+          AUDIT_SCORE_THRESHOLD: "0.60"
+          MAX_AUDIT_RESULTS: "200"
+          AUDIT_CODE_ONLY: "true"
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ArtifactsBucket
+      Events:
+        PackageConfusionAuditApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /audit/package-confusion
+            Method: GET
 
 Outputs:
   ApiGatewayUrl:
@@ -392,6 +443,16 @@ Outputs:
   ListArtifactsFunctionName:
     Description: "List Artifacts Lambda Function Name"
     Value: !Ref ListArtifactsFunction
+
+  ListArtifactsDetailedFunctionArn:
+    Description: "List Artifacts Detailed Lambda Function ARN"
+    Value: !GetAtt ListArtifactsDetailedFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ListArtifactsDetailedFunctionArn"
+
+  ListArtifactsDetailedFunctionName:
+    Description: "List Artifacts Detailed Lambda Function Name"
+    Value: !Ref ListArtifactsDetailedFunction
 
   ResetRegistryFunctionArn:
     Description: "Reset Registry Lambda Function ARN"

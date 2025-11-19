@@ -68,23 +68,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
                 "error": "There is missing field(s) in the artifact_id or it is formed improperly, or is invalid."
             })
 
-        # Validate ID format
-        if not artifact_id.replace("-", "").replace("_", "").isalnum():
-            latency = perf_counter() - start_time
-            log_event(
-                "warning",
-                "Invalid artifact_id format",
-                event=event,
-                context=context,
-                model_id=artifact_id,
-                latency=latency,
-                status=400,
-                error_code="invalid_artifact_id",
-            )
-            return create_response(400, {
-                "error": "There is missing field(s) in the artifact_id or it is formed improperly, or is invalid."
-            })
-
         # Load artifact from S3
         artifact = load_artifact_from_s3(artifact_id)
         if not artifact:

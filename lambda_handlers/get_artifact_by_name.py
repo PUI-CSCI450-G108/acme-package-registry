@@ -5,6 +5,7 @@ Returns metadata for all artifacts matching the provided name.
 """
 
 import json
+import logging
 from time import perf_counter
 from typing import Dict, Any
 
@@ -12,6 +13,12 @@ from lambda_handlers.utils import (
     create_response,
     list_all_artifacts_from_s3,
     log_event,
+)
+
+# Configure logging for Lambda (outputs to CloudWatch Logs)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(levelname)s %(message)s'
 )
 
 

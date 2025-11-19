@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - ACME Package Registry</title>
+    <link rel="stylesheet" href="login-styles.css">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <h1>ACME Package Registry</h1>
+                <p class="subtitle">Trustworthy Model, Dataset & Code Repository</p>
+            </div>
+
+            <div class="login-body">
+                <p class="login-message">Press Enter to continue</p>
+                <form id="login-form" onsubmit="handleLogin(event)">
+                    <input
+                        type="text"
+                        id="username-input"
+                        class="login-input"
+                        placeholder="Username (optional)"
+                        autofocus
+                    >
+                    <button type="submit" class="login-btn">Continue</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="login-scripts.js"></script>
+</body>
+</html>
