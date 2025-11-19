@@ -1,19 +1,47 @@
-// Helper function to get API base URL
-function getApiBaseUrl() {
-    const url = document.getElementById('apiBaseUrl').value.trim();
-    if (!url) {
-        alert('Please enter an API Base URL in the configuration section');
-        return null;
+// Global state
+let currentPage = 0;
+let currentSearchQuery = null;
+const ITEMS_PER_PAGE = 12;
+
+// ============================================
+// Security Utilities
+// ============================================
+
+function isValidUrl(url) {
+    if (!url || url === '#') return true;
+
+    try {
+        const parsed = new URL(url);
+        // Only allow http and https protocols
+        return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    } catch (e) {
+        return false;
     }
-    return url.endsWith('/') ? url.slice(0, -1) : url;
 }
 
-// Helper function to get auth token
+function sanitizeUrl(url) {
+    if (!url || url === '#') return '#';
+
+    if (isValidUrl(url)) {
+        return url;
+    }
+
+    // If invalid, return a safe placeholder
+    return '#';
+}
+
+// ============================================
+// Configuration Management
+// ============================================
+
+function getApiBaseUrl() {
+    return localStorage.getItem('apiBaseUrl') || '';
+}
+
 function getAuthToken() {
-    return document.getElementById('authToken').value.trim();
+    return localStorage.getItem('authToken') || '';
 }
 
-// Helper function to get headers
 function getHeaders() {
     const headers = {
         'Content-Type': 'application/json'
@@ -25,236 +53,407 @@ function getHeaders() {
     return headers;
 }
 
-// Helper function to display response
-function displayResponse(elementId, data, isError = false) {
-    const element = document.getElementById(elementId);
-    element.className = 'response ' + (isError ? 'error' : 'success');
-    element.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
-}
+function saveConfiguration() {
+    const apiUrl = document.getElementById('config-api-url').value.trim();
+    const authToken = document.getElementById('config-auth-token').value.trim();
 
-// Helper function to display loading
-function displayLoading(elementId) {
-    const element = document.getElementById(elementId);
-    element.className = 'response loading';
-    element.innerHTML = '<p>Loading...</p>';
-}
-
-// 1. Health Check
-async function healthCheck() {
-    const baseUrl = getApiBaseUrl();
-    if (!baseUrl) return;
-
-    displayLoading('health-response');
-    try {
-        const response = await fetch(`${baseUrl}/health`);
-        const data = await response.text();
-        displayResponse('health-response', {
-            status: response.status,
-            statusText: response.statusText,
-            body: data
-        }, !response.ok);
-    } catch (error) {
-        displayResponse('health-response', { error: error.message }, true);
-    }
-}
-
-// 2. Create Artifact
-async function createArtifact() {
-    const baseUrl = getApiBaseUrl();
-    if (!baseUrl) return;
-
-    const artifactType = document.getElementById('create-type').value;
-    const url = document.getElementById('create-url').value.trim();
-
-    if (!url) {
-        alert('Please enter a URL');
+    if (!apiUrl) {
+        alert('Please enter an API Base URL');
         return;
     }
 
-    displayLoading('create-response');
+    localStorage.setItem('apiBaseUrl', apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl);
+    localStorage.setItem('authToken', authToken);
+
+    document.getElementById('config-modal').style.display = 'none';
+    loadArtifacts();
+}
+
+function checkConfiguration() {
+    if (!getApiBaseUrl()) {
+        document.getElementById('config-modal').style.display = 'flex';
+        return false;
+    }
+    return true;
+}
+
+// ============================================
+// UI State Management
+// ============================================
+
+function showLoading() {
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('error-state').style.display = 'none';
+    document.getElementById('empty-state').style.display = 'none';
+    document.getElementById('artifacts-grid').innerHTML = '';
+    document.getElementById('pagination').style.display = 'none';
+}
+
+function showError(message) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('error-state').style.display = 'block';
+    document.getElementById('empty-state').style.display = 'none';
+    document.getElementById('error-message').textContent = message;
+    document.getElementById('artifacts-grid').innerHTML = '';
+    document.getElementById('pagination').style.display = 'none';
+}
+
+function showEmpty() {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('error-state').style.display = 'none';
+    document.getElementById('empty-state').style.display = 'block';
+    document.getElementById('artifacts-grid').innerHTML = '';
+    document.getElementById('pagination').style.display = 'none';
+}
+
+function showArtifacts() {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('error-state').style.display = 'none';
+    document.getElementById('empty-state').style.display = 'none';
+}
+
+// ============================================
+// Artifact Loading and Display
+// ============================================
+
+async function loadArtifacts() {
+    if (!checkConfiguration()) return;
+
+    showLoading();
+
     try {
-        const response = await fetch(`${baseUrl}/artifact/${artifactType}`, {
+        const baseUrl = getApiBaseUrl();
+        const offset = currentPage * ITEMS_PER_PAGE;
+
+        const response = await fetch(`${baseUrl}/artifacts/detailed?offset=${offset}`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify([{ name: '*' }])
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const artifacts = await response.json();
+
+        if (!artifacts || artifacts.length === 0) {
+            if (currentPage === 0) {
+                showEmpty();
+            } else {
+                // No more pages, go back to previous page
+                currentPage = Math.max(0, currentPage - 1);
+                updatePaginationButtons();
+            }
+            return;
+        }
+
+        displayArtifacts(artifacts);
+        updatePaginationButtons();
+    } catch (error) {
+        console.error('Error loading artifacts:', error);
+        showError(`Failed to load artifacts: ${error.message}`);
+    }
+}
+
+function displayArtifacts(artifacts) {
+    showArtifacts();
+
+    const grid = document.getElementById('artifacts-grid');
+    grid.innerHTML = '';
+
+    artifacts.forEach(artifact => {
+        const card = createArtifactCard(artifact);
+        grid.appendChild(card);
+    });
+
+    document.getElementById('pagination').style.display = 'flex';
+}
+
+function createArtifactCard(artifact) {
+    const card = document.createElement('div');
+    card.className = 'artifact-card';
+    card.onclick = () => showArtifactDetail(artifact);
+
+    const metadata = artifact.metadata || {};
+    const data = artifact.data || {};
+    const name = metadata.name || 'Unknown';
+    const type = metadata.type || 'model';
+    const id = metadata.id || 'N/A';
+    const netScore = data.net_score !== undefined ? data.net_score : null;
+
+    card.innerHTML = `
+        <div class="artifact-card-header">
+            <div class="artifact-name">${escapeHtml(name)}</div>
+            <span class="badge ${type}">${type}</span>
+        </div>
+        <div class="artifact-info">ID: ${escapeHtml(String(id))}</div>
+        ${netScore !== null ? `
+            <div class="score-container">
+                <div class="score-bar">
+                    <div class="score-fill" style="width: ${netScore * 100}%"></div>
+                </div>
+                <span class="score-text">${(netScore * 100).toFixed(0)}%</span>
+            </div>
+        ` : '<div class="artifact-info">No score available</div>'}
+    `;
+
+    return card;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// ============================================
+// Pagination
+// ============================================
+
+function updatePaginationButtons(totalArtifacts) {
+    document.getElementById('prev-btn').disabled = currentPage === 0;
+    // Disable next button if on last page
+    const isLastPage = ((currentPage + 1) * ITEMS_PER_PAGE) >= totalArtifacts;
+    document.getElementById('next-btn').disabled = isLastPage;
+    document.getElementById('page-info').textContent = `Page ${currentPage + 1}`;
+}
+
+function loadPage(direction) {
+    if (direction === 'prev' && currentPage > 0) {
+        currentPage--;
+    } else if (direction === 'next') {
+        currentPage++;
+    }
+
+    if (currentSearchQuery) {
+        searchArtifacts();
+    } else {
+        loadArtifacts();
+    }
+}
+
+// ============================================
+// Search Functionality
+// ============================================
+
+async function searchArtifacts() {
+    if (!checkConfiguration()) return;
+
+    const searchInput = document.getElementById('search-input').value.trim();
+
+    // If search is empty, just load all artifacts
+    if (!searchInput) {
+        currentSearchQuery = null;
+        currentPage = 0;
+        loadArtifacts();
+        return;
+    }
+
+    showLoading();
+
+    try {
+        const baseUrl = getApiBaseUrl();
+
+        // Build search query - search by name or ID
+        const searchBody = {
+            name: searchInput
+        };
+
+        currentSearchQuery = searchBody;
+
+        const response = await fetch(`${baseUrl}/artifact/search`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(searchBody)
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const artifacts = await response.json();
+
+        if (!artifacts || artifacts.length === 0) {
+            showEmpty();
+            return;
+        }
+
+        // Handle pagination for search results
+        const startIdx = currentPage * ITEMS_PER_PAGE;
+        const endIdx = startIdx + ITEMS_PER_PAGE;
+        const paginatedArtifacts = artifacts.slice(startIdx, endIdx);
+
+        if (paginatedArtifacts.length === 0 && currentPage > 0) {
+            currentPage = Math.max(0, currentPage - 1);
+            searchArtifacts();
+            return;
+        }
+
+        displayArtifacts(paginatedArtifacts);
+
+        // Update next button based on whether there are more results
+        document.getElementById('next-btn').disabled = endIdx >= artifacts.length;
+    } catch (error) {
+        console.error('Error searching artifacts:', error);
+        showError(`Failed to search artifacts: ${error.message}`);
+    }
+}
+
+
+// ============================================
+// Add Artifact Modal
+// ============================================
+
+function showAddArtifactModal() {
+    if (!checkConfiguration()) return;
+
+    document.getElementById('add-modal').style.display = 'flex';
+    document.getElementById('artifact-url').value = '';
+    document.getElementById('artifact-type').value = 'model';
+    document.getElementById('add-error').style.display = 'none';
+    document.getElementById('add-success').style.display = 'none';
+}
+
+function closeAddModal() {
+    document.getElementById('add-modal').style.display = 'none';
+}
+
+async function createArtifact() {
+    const type = document.getElementById('artifact-type').value;
+    const url = document.getElementById('artifact-url').value.trim();
+
+    if (!url) {
+        showModalError('Please enter a URL');
+        return;
+    }
+
+    const submitBtn = document.getElementById('submit-btn');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Adding...';
+    document.getElementById('add-error').style.display = 'none';
+    document.getElementById('add-success').style.display = 'none';
+
+    try {
+        const baseUrl = getApiBaseUrl();
+        const response = await fetch(`${baseUrl}/artifact/${type}`, {
             method: 'POST',
             headers: getHeaders(),
             body: JSON.stringify({ url: url })
         });
+
         const data = await response.json();
-        displayResponse('create-response', {
-            status: response.status,
-            statusText: response.statusText,
-            body: data
-        }, !response.ok);
-    } catch (error) {
-        displayResponse('create-response', { error: error.message }, true);
-    }
-}
 
-// 3. List Artifacts
-async function listArtifacts() {
-    const baseUrl = getApiBaseUrl();
-    if (!baseUrl) return;
-
-    const queryText = document.getElementById('list-query').value.trim();
-    const offset = document.getElementById('list-offset').value.trim();
-
-    let query;
-    try {
-        query = JSON.parse(queryText);
-    } catch (e) {
-        alert('Invalid JSON in query field');
-        return;
-    }
-
-    displayLoading('list-response');
-    try {
-        let url = `${baseUrl}/artifacts`;
-        if (offset) {
-            url += `?offset=${encodeURIComponent(offset)}`;
+        if (!response.ok) {
+            throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
         }
 
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: getHeaders(),
-            body: JSON.stringify(query)
-        });
-        const data = await response.json();
-        displayResponse('list-response', {
-            status: response.status,
-            statusText: response.statusText,
-            body: data
-        }, !response.ok);
+        showModalSuccess('Artifact added successfully!');
+
+        // Refresh the artifacts list after a short delay
+        setTimeout(() => {
+            closeAddModal();
+            currentPage = 0;
+            currentSearchQuery = null;
+            loadArtifacts();
+        }, 1500);
     } catch (error) {
-        displayResponse('list-response', { error: error.message }, true);
+        console.error('Error creating artifact:', error);
+        showModalError(`Failed to add artifact: ${error.message}`);
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Add Artifact';
     }
 }
 
-// 4. Get Artifact by Name
-async function getArtifactByName() {
-    const baseUrl = getApiBaseUrl();
-    if (!baseUrl) return;
-
-    const name = document.getElementById('byname-name').value.trim();
-    if (!name) {
-        alert('Please enter an artifact name');
-        return;
-    }
-
-    displayLoading('byname-response');
-    try {
-        const response = await fetch(`${baseUrl}/artifact/byName/${encodeURIComponent(name)}`, {
-            headers: getHeaders()
-        });
-        const data = await response.json();
-        displayResponse('byname-response', {
-            status: response.status,
-            statusText: response.statusText,
-            body: data
-        }, !response.ok);
-    } catch (error) {
-        displayResponse('byname-response', { error: error.message }, true);
-    }
+function showModalError(message) {
+    const errorDiv = document.getElementById('add-error');
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+    document.getElementById('add-success').style.display = 'none';
 }
 
-// 5. Get Artifact by ID
-async function getArtifactById() {
-    const baseUrl = getApiBaseUrl();
-    if (!baseUrl) return;
-
-    const artifactType = document.getElementById('byid-type').value;
-    const id = document.getElementById('byid-id').value.trim();
-
-    if (!id) {
-        alert('Please enter an artifact ID');
-        return;
-    }
-
-    displayLoading('byid-response');
-    try {
-        const response = await fetch(`${baseUrl}/artifacts/${artifactType}/${encodeURIComponent(id)}`, {
-            headers: getHeaders()
-        });
-        const data = await response.json();
-        displayResponse('byid-response', {
-            status: response.status,
-            statusText: response.statusText,
-            body: data
-        }, !response.ok);
-    } catch (error) {
-        displayResponse('byid-response', { error: error.message }, true);
-    }
+function showModalSuccess(message) {
+    const successDiv = document.getElementById('add-success');
+    successDiv.textContent = message;
+    successDiv.style.display = 'block';
+    document.getElementById('add-error').style.display = 'none';
 }
 
-// 6. Rate Artifact
-async function rateArtifact() {
-    const baseUrl = getApiBaseUrl();
-    if (!baseUrl) return;
+// ============================================
+// Artifact Detail Modal
+// ============================================
 
-    const id = document.getElementById('rate-id').value.trim();
-    if (!id) {
-        alert('Please enter a model ID');
-        return;
-    }
+function showArtifactDetail(artifact) {
+    const metadata = artifact.metadata || {};
+    const data = artifact.data || {};
 
-    displayLoading('rate-response');
-    try {
-        const response = await fetch(`${baseUrl}/artifact/model/${encodeURIComponent(id)}/rate`, {
-            headers: getHeaders()
-        });
-        const data = await response.json();
-        displayResponse('rate-response', {
-            status: response.status,
-            statusText: response.statusText,
-            body: data
-        }, !response.ok);
-    } catch (error) {
-        displayResponse('rate-response', { error: error.message }, true);
-    }
+    document.getElementById('detail-name').textContent = metadata.name || 'Unknown';
+    document.getElementById('detail-type').textContent = metadata.type || 'model';
+    document.getElementById('detail-type').className = `badge ${metadata.type || 'model'}`;
+    document.getElementById('detail-id').textContent = metadata.id || 'N/A';
+
+    const url = data.url || '#';
+    const urlElement = document.getElementById('detail-url');
+    urlElement.textContent = url;
+    urlElement.href = sanitizeUrl(url);
+
+    const netScore = data.net_score !== undefined ? data.net_score : 0;
+    document.getElementById('detail-score-fill').style.width = `${netScore * 100}%`;
+    document.getElementById('detail-score-text').textContent = `${(netScore * 100).toFixed(1)}%`;
+
+    document.getElementById('detail-modal').style.display = 'flex';
 }
 
-// 7. Reset Registry
-async function resetRegistry() {
-    if (!confirm('Are you sure you want to reset the registry? This will delete all artifacts!')) {
-        return;
-    }
-
-    const baseUrl = getApiBaseUrl();
-    if (!baseUrl) return;
-
-    displayLoading('reset-response');
-    try {
-        const response = await fetch(`${baseUrl}/reset`, {
-            method: 'DELETE',
-            headers: getHeaders()
-        });
-        const data = response.status === 200 ? { message: 'Registry reset successfully' } : await response.json();
-        displayResponse('reset-response', {
-            status: response.status,
-            statusText: response.statusText,
-            body: data
-        }, !response.ok);
-    } catch (error) {
-        displayResponse('reset-response', { error: error.message }, true);
-    }
+function closeDetailModal() {
+    document.getElementById('detail-modal').style.display = 'none';
 }
 
-// Load saved configuration on page load
+// ============================================
+// Initialization
+// ============================================
+
 window.addEventListener('DOMContentLoaded', function() {
-    const savedUrl = localStorage.getItem('apiBaseUrl');
-    const savedToken = localStorage.getItem('authToken');
+    // Load saved configuration
+    const savedUrl = getApiBaseUrl();
+    const savedToken = getAuthToken();
 
     if (savedUrl) {
-        document.getElementById('apiBaseUrl').value = savedUrl;
+        document.getElementById('config-api-url').value = savedUrl;
     }
     if (savedToken) {
-        document.getElementById('authToken').value = savedToken;
+        document.getElementById('config-auth-token').value = savedToken;
     }
 
-    // Save configuration when it changes
-    document.getElementById('apiBaseUrl').addEventListener('blur', function() {
-        localStorage.setItem('apiBaseUrl', this.value.trim());
-    });
-    document.getElementById('authToken').addEventListener('blur', function() {
-        localStorage.setItem('authToken', this.value.trim());
-    });
-});
+    // Handle Enter key in search input
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                currentPage = 0;
+                searchArtifacts();
+            }
+        });
+    }
 
+    // Load artifacts on page load
+    if (checkConfiguration()) {
+        loadArtifacts();
+    }
+
+    // Close modals when clicking outside
+    window.onclick = function(event) {
+        const addModal = document.getElementById('add-modal');
+        const detailModal = document.getElementById('detail-modal');
+        const configModal = document.getElementById('config-modal');
+
+        if (event.target === addModal) {
+            closeAddModal();
+        } else if (event.target === detailModal) {
+            closeDetailModal();
+        } else if (event.target === configModal && getApiBaseUrl()) {
+            // Only allow closing config modal if API URL is set
+            configModal.style.display = 'none';
+        }
+    };
+});

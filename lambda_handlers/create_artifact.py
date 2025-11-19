@@ -18,7 +18,6 @@ from lambda_handlers.utils import (
     save_artifact_to_s3,
     MIN_NET_SCORE_THRESHOLD,
     log_event,
-    is_valid_artifact_url,
 )
 from src.artifact_store import S3ArtifactStore
 
@@ -110,24 +109,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
                 "error": "There is missing field(s) in the artifact_data or it is formed improperly (must include a single url)."
             })
 
-        # Validate URL format based on artifact type
-        if not is_valid_artifact_url(url, artifact_type):
-            latency = perf_counter() - start_time
-            error_msg = {
-                "model": "Invalid URL. Must be a valid HuggingFace model URL (e.g., https://huggingface.co/org/model).",
-                "dataset": "Invalid URL. Must be a valid HuggingFace dataset URL (e.g., https://huggingface.co/datasets/org/dataset).",
-                "code": "Invalid URL. Must be a valid GitHub repository URL (e.g., https://github.com/owner/repo)."
-            }.get(artifact_type, "Invalid URL.")
-            log_event(
-                "warning",
-                f"Invalid URL provided for {artifact_type}",
-                event=event,
-                context=context,
-                latency=latency,
-                status=400,
-                error_code="invalid_artifact_url",
-            )
-            return create_response(400, {"error": error_msg})
+        # Extract optional name from request body
+        provided_name = body.get('name', '').strip() if body.get('name') else None
 
         # Generate artifact ID (deterministic UUID based on type+URL)
         artifact_id = generate_artifact_id(artifact_type, url)
@@ -154,7 +137,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
                 bucket_name = os.environ.get('ARTIFACTS_BUCKET')
                 artifact_store = S3ArtifactStore(bucket_name) if bucket_name else None
 
-                rating = evaluate_model(url, artifact_store)
+                rating = evaluate_model(url, artifact_store=artifact_store)
 
                 # Check if rating is acceptable
                 if rating.get("net_score", 0) < MIN_NET_SCORE_THRESHOLD:
@@ -173,7 +156,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
                         "error": f"Artifact is not registered due to the disqualified rating (net_score={rating.get('net_score', 0):.2f} < {MIN_NET_SCORE_THRESHOLD})."
                     })
 
-                name = rating.get("name", "unknown")
+                # Use provided name if available, otherwise use name from rating
+                name = provided_name if provided_name else rating.get("name", "unknown")
             except Exception as e:
                 latency = perf_counter() - start_time
                 log_event(
@@ -191,14 +175,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
                     "error": f"Error evaluating artifact: {str(e)}"
                 })
         else:
-            # For dataset/code, just extract name from URL
-            name = url.split("/")[-1] if "/" in url else "unknown"
+            # For dataset/code, use provided name or extract from URL
+            if provided_name:
+                name = provided_name
+            else:
+                name = url.split("/")[-1] if "/" in url else "unknown"
             rating = None
 
         # Create artifact metadata
         metadata = {
             "name": name,
-            "version": "1.0.0",
             "id": artifact_id,
             "type": artifact_type
         }

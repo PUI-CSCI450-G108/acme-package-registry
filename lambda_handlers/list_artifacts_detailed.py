@@ -1,6 +1,6 @@
-"""Lambda handler for POST /artifacts.
+"""Lambda handler for POST /artifacts/detailed.
 
-Returns paginated metadata for artifacts that match the supplied queries.
+Returns paginated detailed artifact information including metadata and ratings.
 """
 
 import json
@@ -45,6 +45,24 @@ def _matches_query(metadata: Dict[str, Any], query: Dict[str, Any]) -> bool:
     return True
 
 
+def _build_detailed_artifact(artifact: Dict[str, Any]) -> Dict[str, Any]:
+    """Build a detailed artifact response with metadata and data fields."""
+    metadata = artifact.get("metadata", {})
+    rating = artifact.get("rating", {})
+    url = artifact.get("url", "")
+
+    # Build data field with scores from rating
+    data = {
+        "url": url,
+        "net_score": rating.get("net_score") if rating else None,
+    }
+
+    return {
+        "metadata": metadata,
+        "data": data
+    }
+
+
 def _collect_matches(
     artifacts: Iterable[Dict[str, Any]], queries: Sequence[Dict[str, Any]]
 ) -> List[Dict[str, Any]]:
@@ -64,22 +82,26 @@ def _collect_matches(
                 continue
 
             if _matches_query(metadata, query):
-                results[artifact_id] = metadata
+                results[artifact_id] = _build_detailed_artifact(artifact)
 
     return sorted(
-        results.values(), key=lambda item: (str(item.get("name", "")).lower(), str(item.get("id", "")))
+        results.values(),
+        key=lambda item: (
+            str(item.get("metadata", {}).get("name", "")).lower(),
+            str(item.get("metadata", {}).get("id", ""))
+        )
     )
 
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """Handle POST /artifacts requests."""
+    """Handle POST /artifacts/detailed requests."""
 
     start_time = perf_counter()
 
     try:
         log_event(
             "info",
-            f"list_artifacts invoked: {json.dumps(event)}",
+            f"list_artifacts_detailed invoked: {json.dumps(event)}",
             event=event,
             context=context,
         )
@@ -88,7 +110,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             latency = perf_counter() - start_time
             log_event(
                 "info",
-                "Handled OPTIONS preflight for list_artifacts",
+                "Handled OPTIONS preflight for list_artifacts_detailed",
                 event=event,
                 context=context,
                 latency=latency,
@@ -121,7 +143,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             latency = perf_counter() - start_time
             log_event(
                 "warning",
-                "Invalid JSON payload for list_artifacts",
+                "Invalid JSON payload for list_artifacts_detailed",
                 event=event,
                 context=context,
                 latency=latency,
@@ -198,7 +220,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         latency = perf_counter() - start_time
         log_event(
             "info",
-            f"Returning {len(page)} artifact(s) for list_artifacts",
+            f"Returning {len(page)} detailed artifact(s) for list_artifacts_detailed",
             event=event,
             context=context,
             latency=latency,
@@ -209,7 +231,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         latency = perf_counter() - start_time
         log_event(
             "error",
-            f"Unexpected error in list_artifacts: {exc}",
+            f"Unexpected error in list_artifacts_detailed: {exc}",
             event=event,
             context=context,
             latency=latency,
@@ -218,4 +240,3 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             exc_info=True,
         )
         return create_response(500, {"error": f"Internal server error: {str(exc)}"})
-
