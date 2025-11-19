@@ -194,7 +194,7 @@ Resources:
             Method: GET
 
   # Lambda Function for GET /health
-  HealthCheckFunction:
+  HealthCheckLiveFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: .
