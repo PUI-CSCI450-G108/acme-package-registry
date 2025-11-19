@@ -5,7 +5,6 @@ Simple health check endpoint.
 """
 
 from time import perf_counter
-from datetime import datetime, timedelta
 from typing import Any, Dict
 
 from lambda_handlers.utils import BUCKET_NAME, create_response, handle_cors_preflight, s3_client, log_event
@@ -69,20 +68,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
         latency=latency,
         status=200,
     )
-
-    # Time window for recent metrics (60 minutes)
-    window_minutes = 60
-    now = datetime.utcnow()
-    window_start = now - timedelta(minutes=window_minutes)
-
-    body = {
-        "status": "healthy",
-        "service": "acme-package-registry",
-        "timestamp": now.isoformat() + "Z",
-        "window_minutes": window_minutes,
-        "window_start": window_start.isoformat() + "Z",
-        "window_end": now.isoformat() + "Z",
-        "artifacts_count": artifact_count,
-    }
-
-    return create_response(200, body)
+    return create_response(
+        200,
+        {
+            "status": "healthy",
+            "service": "acme-package-registry",
+            "artifacts_count": artifact_count,
+        },
+    )

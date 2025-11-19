@@ -18,7 +18,6 @@ from lambda_handlers.utils import (
     save_artifact_to_s3,
     MIN_NET_SCORE_THRESHOLD,
     log_event,
-    is_valid_artifact_url,
 )
 from src.artifact_store import S3ArtifactStore
 
@@ -112,24 +111,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
 
         # Extract optional name from request body
         provided_name = body.get('name', '').strip() if body.get('name') else None
-        # Validate URL format based on artifact type
-        if not is_valid_artifact_url(url, artifact_type):
-            latency = perf_counter() - start_time
-            error_msg = {
-                "model": "Invalid URL. Must be a valid HuggingFace model URL (e.g., https://huggingface.co/org/model).",
-                "dataset": "Invalid URL. Must be a valid HuggingFace dataset URL (e.g., https://huggingface.co/datasets/org/dataset).",
-                "code": "Invalid URL. Must be a valid GitHub repository URL (e.g., https://github.com/owner/repo)."
-            }.get(artifact_type, "Invalid URL.")
-            log_event(
-                "warning",
-                f"Invalid URL provided for {artifact_type}",
-                event=event,
-                context=context,
-                latency=latency,
-                status=400,
-                error_code="invalid_artifact_url",
-            )
-            return create_response(400, {"error": error_msg})
 
         # Generate artifact ID (deterministic UUID based on type+URL)
         artifact_id = generate_artifact_id(artifact_type, url)
