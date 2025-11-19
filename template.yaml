@@ -206,6 +206,24 @@ Resources:
             Path: /health
             Method: GET
 
+  # Lambda Function for GET /health
+  HealthCheckLiveFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.health_check_live.handler
+      Description: Health check live endpoint
+      FunctionName: acme-registry-health-check
+      Timeout: 10
+      MemorySize: 128
+      Events:
+        HealthCheckApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /health/live
+            Method: GET
+
   # Lambda Function for GET /artifact/byName/{name}
   GetArtifactByNameFunction:
     Type: AWS::Serverless::Function
