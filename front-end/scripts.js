@@ -76,12 +76,59 @@ function getStoredUsername() {
     }
 }
 
+function getTokenPayload() {
+    const token = getAuthToken();
+    if (!token) {
+        return null;
+    }
+
+    try {
+        const rawToken = token.toLowerCase().startsWith('bearer ')
+            ? token.slice(7)
+            : token;
+        const payloadSegment = rawToken.split('.')[1];
+        if (!payloadSegment) {
+            return null;
+        }
+        const decodedPayload = decodeBase64Url(payloadSegment);
+        return JSON.parse(decodedPayload);
+    } catch (error) {
+        console.warn('Unable to decode token payload', error);
+        return null;
+    }
+}
+
+function isCurrentUserAdmin() {
+    const payload = getTokenPayload();
+    if (payload && typeof payload.is_admin !== 'undefined') {
+        return Boolean(payload.is_admin);
+    }
+
+    const storedAdminFlag = localStorage.getItem('isAdmin');
+    if (storedAdminFlag !== null) {
+        return storedAdminFlag === 'true';
+    }
+
+    return false;
+}
+
 function updateWelcomeMessage() {
     const welcomeElement = document.getElementById('welcome-message');
     if (!welcomeElement) return;
 
     const username = getStoredUsername();
     welcomeElement.textContent = username ? `Welcome, ${username}!` : 'Welcome!';
+}
+
+function updateAdminControls() {
+    const registerBtn = document.getElementById('register-user-btn');
+    if (!registerBtn) return;
+
+    if (isCurrentUserAdmin()) {
+        registerBtn.style.display = 'inline-flex';
+    } else {
+        registerBtn.style.display = 'none';
+    }
 }
 
 function getHeaders() {
@@ -118,6 +165,7 @@ async function logout() {
         console.error('Logout request failed:', error);
     } finally {
         localStorage.removeItem('authToken');
+        localStorage.removeItem('isAdmin');
         window.location.href = 'login.html';
     }
 }
@@ -135,6 +183,7 @@ function saveConfiguration() {
     localStorage.setItem('authToken', authToken);
 
     document.getElementById('config-modal').style.display = 'none';
+    updateAdminControls();
     loadArtifacts();
 }
 
@@ -391,6 +440,11 @@ function showAddArtifactModal() {
 function showRegisterUserModal() {
     if (!checkConfiguration()) return;
 
+    if (!isCurrentUserAdmin()) {
+        alert('Admin privileges are required to register a new user.');
+        return;
+    }
+
     document.getElementById('register-modal').style.display = 'flex';
     document.getElementById('register-username').value = '';
     document.getElementById('register-password').value = '';
@@ -576,6 +630,7 @@ window.addEventListener('DOMContentLoaded', function() {
     }
 
     updateWelcomeMessage();
+    updateAdminControls();
 
     // Handle Enter key in search input
     const searchInput = document.getElementById('search-input');

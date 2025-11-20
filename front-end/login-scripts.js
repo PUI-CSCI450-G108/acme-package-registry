@@ -50,12 +50,38 @@ async function handleLogin(event) {
         const tokenText = responseText.trim();
         localStorage.setItem('authToken', tokenText);
 
+        // Persist admin flag when present in the token payload so UI controls can be
+        // adjusted without additional API calls.
+        const payload = decodeTokenPayload(tokenText);
+        if (payload && typeof payload.is_admin !== 'undefined') {
+            localStorage.setItem('isAdmin', payload.is_admin ? 'true' : 'false');
+        } else {
+            localStorage.removeItem('isAdmin');
+        }
+
         // Redirect to main application after successful authentication.
         window.location.href = 'index.html';
     } catch (error) {
         console.error('Login failed:', error);
         errorDiv.textContent = error.message || 'Unable to login.';
         errorDiv.style.display = 'block';
+    }
+}
+
+function decodeTokenPayload(tokenText) {
+    try {
+        const normalized = tokenText.toLowerCase().startsWith('bearer ')
+            ? tokenText.slice(7)
+            : tokenText;
+        const payloadSegment = normalized.split('.')[1];
+        if (!payloadSegment) {
+            return null;
+        }
+        const decoded = atob(payloadSegment.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - payloadSegment.length % 4) % 4));
+        return JSON.parse(decoded);
+    } catch (error) {
+        console.warn('Unable to decode token payload for admin detection', error);
+        return null;
     }
 }
 
