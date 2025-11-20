@@ -39,5 +39,6 @@ dependencies = [
     "flake8",
     "mypy",
     "validators",
+    "PyJWT",
     "packaging"
 ]

@@ -11,3 +11,4 @@ mypy
 validators
 boto3
 packaging
+PyJWT
