@@ -22,6 +22,7 @@ class TokenRecord:
     jti: str
     use_count: int = 0
     max_uses: int = MAX_TOKEN_USES
+    revoked: bool = False
 
 
 class TokenStore(ABC):
@@ -37,6 +38,10 @@ class TokenStore(ABC):
     ) -> bool:
         """Increment token usage and return whether the token is still valid."""
 
+    @abstractmethod
+    def revoke_token(self, jti: str) -> None:
+        """Mark a token as revoked so it cannot be reused."""
+
 
 class InMemoryTokenStore(TokenStore):
     """In-memory token tracking implementation."""
@@ -45,6 +50,7 @@ class InMemoryTokenStore(TokenStore):
         self._tokens: Dict[str, TokenRecord] = {}
 
     def register_new_token(self, payload: TokenPayload) -> None:
+        # Persist the freshly issued token so later requests can be validated and revoked.
         record = TokenRecord(
             username=payload.sub,
             issued_at=payload.issued_at,
@@ -74,9 +80,22 @@ class InMemoryTokenStore(TokenStore):
             )
             raise TokenExpiredError("Token has expired")
 
+        if record.revoked:
+            logger.info("Token %s has been revoked", jti)
+            raise InvalidTokenError("Token has been revoked")
+
         if record.use_count >= record.max_uses:
             logger.info("Token %s exceeded max uses (%s)", jti, record.max_uses)
             raise TokenUsageExceededError("Token usage limit exceeded")
         record.use_count += 1
 
         return True
+
+    def revoke_token(self, jti: str) -> None:
+        record = self._tokens.get(jti)
+        if not record:
+            logger.info("Token id %s not found during revoke", jti)
+            raise InvalidTokenError("Unknown token identifier")
+
+        record.revoked = True
+        logger.info("Revoked token %s for user '%s'", jti, record.username)

@@ -27,6 +27,7 @@ body {
     margin-bottom: 30px;
     padding-bottom: 20px;
     border-bottom: 2px solid #f0f0f0;
+    position: relative;
 }
 
 .header h1 {
@@ -38,6 +39,25 @@ body {
 .subtitle {
     color: #666;
     font-size: 1.1em;
+}
+
+.logout-btn {
+    position: absolute;
+    right: 0;
+    top: 0;
+    padding: 10px 18px;
+    background: linear-gradient(135deg, #f44336 0%, #e53935 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(244, 67, 54, 0.35);
+}
+
+.logout-btn:hover {
+    transform: translateY(-1px);
 }
 
 /* Actions Bar */
