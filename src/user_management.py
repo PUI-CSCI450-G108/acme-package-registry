@@ -62,9 +62,20 @@ class InMemoryUserRepository(UserRepository):
 def _hash_password(plain_password: str) -> str:
     """Hash a password using PBKDF2 with a random salt."""
 
+    if not isinstance(plain_password, str):
+        raise ValueError("Password must be a string")
+    if not plain_password:
+        raise ValueError("Password cannot be empty")
+    if len(plain_password) < 8:
+        raise ValueError("Password must be at least 8 characters long")
+    try:
+        password_bytes = plain_password.encode("utf-8")
+    except UnicodeEncodeError:
+        raise ValueError("Password contains invalid characters and cannot be encoded as UTF-8")
+
     salt = secrets.token_bytes(16)
     derived_key = hashlib.pbkdf2_hmac(
-        "sha256", plain_password.encode("utf-8"), salt, 100_000
+        "sha256", password_bytes, salt, 100_000
     )
     combined = salt + derived_key
     return base64.b64encode(combined).decode("utf-8")
