@@ -30,14 +30,38 @@ class UserRepository(ABC):
 
     @abstractmethod
     def add_user(self, user: User) -> None:
+        """Add a user to the repository.
+
+        Args:
+            user: The user to add.
+
+        Raises:
+            ValueError: If a user with the same username already exists.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def get_user(self, username: str) -> Optional[User]:
+        """Retrieve a user by username.
+
+        Args:
+            username: The username of the user to retrieve.
+
+        Returns:
+            The User object if found, otherwise None.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def delete_user(self, username: str) -> bool:
+        """Delete a user by username.
+
+        Args:
+            username: The username of the user to delete.
+
+        Returns:
+            True if the user was deleted, False if the user was not found.
+        """
         raise NotImplementedError
 
 
