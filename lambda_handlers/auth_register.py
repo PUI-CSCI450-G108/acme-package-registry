@@ -92,18 +92,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
             can_download=can_download,
             is_admin=is_admin,
         )
-    except AuthError:
-        latency = perf_counter() - start_time
-        log_event(
-            "warning",
-            "Registration failed due to insufficient permissions",
-            event=event,
-            context=context,
-            latency=latency,
-            status=403,
-            error_code="forbidden",
-        )
-        return create_response(403, {"error": "Admin privileges required."})
     except InvalidTokenError:
         latency = perf_counter() - start_time
         log_event(
@@ -116,6 +104,18 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
             error_code="invalid_token",
         )
         return create_response(401, {"error": "Invalid token."})
+    except AuthError:
+        latency = perf_counter() - start_time
+        log_event(
+            "warning",
+            "Registration failed due to insufficient permissions",
+            event=event,
+            context=context,
+            latency=latency,
+            status=403,
+            error_code="forbidden",
+        )
+        return create_response(403, {"error": "Admin privileges required."})
     except ValueError as exc:
         latency = perf_counter() - start_time
         log_event(
