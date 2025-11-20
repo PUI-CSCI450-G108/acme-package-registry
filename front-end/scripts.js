@@ -553,12 +553,18 @@ async function submitUserRegistration() {
             })
         });
 
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+        let data = null;
+        if (response.ok) {
+            data = await response.json();
+        } else {
+            // Try to parse error message as JSON, but fall back to status if not JSON
+            try {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+            } catch (e) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
         }
-
         document.getElementById('register-username').value = '';
         document.getElementById('register-password').value = '';
         document.getElementById('register-confirm-password').value = '';
