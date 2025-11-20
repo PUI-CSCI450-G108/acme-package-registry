@@ -567,7 +567,7 @@ async function submitUserRegistration() {
         document.getElementById('register-can-download').checked = false;
         document.getElementById('register-is-admin').checked = false;
 
-        successDiv.textContent = `User ${data.username} registered successfully.`;
+        successDiv.textContent = `User ${escapeHtml(data.username)} registered successfully.`;
         successDiv.style.display = 'block';
         errorDiv.style.display = 'none';
     } catch (error) {
