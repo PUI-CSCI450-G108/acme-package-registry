@@ -74,9 +74,9 @@ class InMemoryTokenStore(TokenStore):
             )
             raise TokenExpiredError("Token has expired")
 
-        record.use_count += 1
-        if record.use_count > record.max_uses:
+        if record.use_count >= record.max_uses:
             logger.info("Token %s exceeded max uses (%s)", jti, record.max_uses)
             raise TokenUsageExceededError("Token usage limit exceeded")
+        record.use_count += 1
 
         return True
