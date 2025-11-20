@@ -166,6 +166,7 @@ async function logout() {
     } finally {
         localStorage.removeItem('authToken');
         localStorage.removeItem('isAdmin');
+        localStorage.removeItem('username');
         window.location.href = 'login.html';
     }
 }
