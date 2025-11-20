@@ -54,15 +54,15 @@ class UserRepository(ABC):
 
     @abstractmethod
     def delete_user(self, username: str) -> bool:
-        """Delete a user by username.
+        ...
 
-        Args:
-            username: The username of the user to delete.
+    @abstractmethod
+    def get_user(self, username: str) -> Optional[User]:
+        ...
 
-        Returns:
-            True if the user was deleted, False if the user was not found.
-        """
-        raise NotImplementedError
+    @abstractmethod
+    def delete_user(self, username: str) -> bool:
+        ...
 
 
 class InMemoryUserRepository(UserRepository):
