@@ -53,6 +53,33 @@ function getHeaders() {
     return headers;
 }
 
+// Log out by revoking the token on the API and clearing local storage.
+async function logout() {
+    const baseUrl = getApiBaseUrl();
+    const token = getAuthToken();
+
+    // If we have no token saved, just redirect to the login page.
+    if (!token) {
+        localStorage.removeItem('authToken');
+        window.location.href = 'login.html';
+        return;
+    }
+
+    try {
+        if (baseUrl) {
+            await fetch(`${baseUrl}/auth/logout`, {
+                method: 'POST',
+                headers: getHeaders()
+            });
+        }
+    } catch (error) {
+        console.error('Logout request failed:', error);
+    } finally {
+        localStorage.removeItem('authToken');
+        window.location.href = 'login.html';
+    }
+}
+
 function saveConfiguration() {
     const apiUrl = document.getElementById('config-api-url').value.trim();
     const authToken = document.getElementById('config-auth-token').value.trim();

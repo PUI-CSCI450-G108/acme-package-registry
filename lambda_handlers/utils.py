@@ -51,6 +51,16 @@ logger = _configure_logger()
 LogLevel = Union[int, str]
 
 
+def get_header(event: Dict[str, Any], name: str) -> Optional[str]:
+    """Retrieve a header value from the API Gateway event, case-insensitively."""
+
+    headers = event.get("headers") or {}
+    for key, value in headers.items():
+        if key.lower() == name.lower():
+            return value
+    return None
+
+
 def log_event(
     level: LogLevel,
     message: str,
