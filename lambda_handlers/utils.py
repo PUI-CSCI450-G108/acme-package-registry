@@ -140,11 +140,6 @@ def log_event(
 
     logger.log(level_value, message, **log_kwargs)
 
-# Import evaluation logic
-from src.metrics.helpers.pull_model import pull_model_info, canonicalize_hf_url
-from src.orchestrator import calculate_all_metrics
-from src.artifact_utils import generate_artifact_id
-
 # S3 storage for artifacts
 BUCKET_NAME = os.getenv("ARTIFACTS_BUCKET")
 s3_client = boto3.client("s3") if BUCKET_NAME else None
@@ -438,6 +433,10 @@ def evaluate_model(
     context: Optional[Any] = None,
 ) -> dict:
     """Evaluate a model and return rating dict."""
+    # Lazy import evaluation logic to reduce cold start time for handlers that don't evaluate
+    from src.metrics.helpers.pull_model import pull_model_info, canonicalize_hf_url
+    from src.orchestrator import calculate_all_metrics
+
     log_event("info", f"Evaluating model: {url}", event=event, context=context)
 
     url = canonicalize_hf_url(url) if url.startswith("https://huggingface.co/") else url
