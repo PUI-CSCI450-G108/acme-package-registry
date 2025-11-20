@@ -7,6 +7,7 @@ Includes S3 operations, response formatting, and model evaluation helpers.
 import os
 import json
 import logging
+import re
 import boto3
 from botocore.exceptions import ClientError
 from typing import Dict, Any, Optional, Iterable, List, Union
@@ -452,5 +453,58 @@ def evaluate_model(
             result[k] = 1
 
     return convert_to_model_rating(result)
+
+
+# --- URL Validation Helpers ---
+
+def is_valid_artifact_url(url: str, artifact_type: str = "model") -> bool:
+    """
+    Validate that a URL is valid for the artifact type.
+
+    Supported URL patterns:
+    - model: https://huggingface.co/<org>/<model_name>[/tree/<branch>]
+    - dataset: https://huggingface.co/datasets/<org>/<dataset_name>[/tree/<branch>]
+    - code: https://github.com/<owner>/<repo>[/tree/<branch>]
+
+    Args:
+        url: The URL to validate
+        artifact_type: Type of artifact - "model", "dataset", or "code"
+
+    Returns:
+        True if valid, False otherwise
+    """
+    if not isinstance(url, str):
+        return False
+
+    url = url.strip()
+
+    if artifact_type == "model":
+        # Model pattern: https://huggingface.co/<org>/<name>[/tree/<branch>]
+        if not url.startswith("https://huggingface.co/"):
+            return False
+        remainder = url.replace("https://huggingface.co/", "")
+        # Must not start with "datasets/" and must have org/name format
+        if remainder.startswith("datasets/"):
+            return False
+        pattern = r"^[a-zA-Z0-9_-]+/[a-zA-Z0-9_.\-]+(/tree/[a-zA-Z0-9_.\-]+)?/?$"
+        return bool(re.match(pattern, remainder))
+
+    elif artifact_type == "dataset":
+        # Dataset pattern: https://huggingface.co/datasets/<org>/<name>[/tree/<branch>]
+        if not url.startswith("https://huggingface.co/datasets/"):
+            return False
+        remainder = url.replace("https://huggingface.co/datasets/", "")
+        pattern = r"^[a-zA-Z0-9_-]+/[a-zA-Z0-9_.\-]+(/tree/[a-zA-Z0-9_.\-]+)?/?$"
+        return bool(re.match(pattern, remainder))
+
+    elif artifact_type == "code":
+        # Code pattern: https://github.com/<owner>/<repo>[/tree/<branch>]
+        if not url.startswith("https://github.com/"):
+            return False
+        remainder = url.replace("https://github.com/", "")
+        pattern = r"^[a-zA-Z0-9_-]+/[a-zA-Z0-9_.\-]+(/tree/[a-zA-Z0-9_.\-]+)?/?$"
+        return bool(re.match(pattern, remainder))
+
+    return False
 
 
