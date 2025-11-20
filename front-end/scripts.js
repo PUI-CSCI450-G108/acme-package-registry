@@ -30,6 +30,41 @@ function sanitizeUrl(url) {
     return '#';
 }
 
+function decodeJwtPayload(tokenText) {
+    if (!tokenText) return null;
+
+    const normalized = tokenText.trim().toLowerCase().startsWith('bearer ')
+        ? tokenText.trim().slice(7)
+        : tokenText.trim();
+
+    const parts = normalized.split('.');
+    if (parts.length < 2) return null;
+
+    try {
+        const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+        const json = atob(padded);
+        return JSON.parse(json);
+    } catch (error) {
+        console.error('Failed to decode token payload', error);
+        return null;
+    }
+}
+
+function getCurrentUserPermissions() {
+    const payload = decodeJwtPayload(getAuthToken());
+    return {
+        is_admin: Boolean(payload?.is_admin),
+        can_upload: Boolean(payload?.can_upload),
+        can_search: Boolean(payload?.can_search),
+        can_download: Boolean(payload?.can_download)
+    };
+}
+
+function isCurrentUserAdmin() {
+    return getCurrentUserPermissions().is_admin;
+}
+
 // ============================================
 // Configuration Management
 // ============================================
@@ -408,6 +443,145 @@ function showModalSuccess(message) {
 }
 
 // ============================================
+// Register User Modal
+// ============================================
+
+function toggleAdminFeatures() {
+    const registerBtn = document.getElementById('register-user-btn');
+    if (!registerBtn) return;
+
+    if (isCurrentUserAdmin()) {
+        registerBtn.style.display = 'inline-flex';
+    } else {
+        registerBtn.style.display = 'none';
+        closeRegisterModal();
+    }
+}
+
+function resetRegisterForm() {
+    document.getElementById('register-username').value = '';
+    document.getElementById('register-password').value = '';
+    document.getElementById('register-confirm-password').value = '';
+    document.getElementById('register-can-upload').checked = false;
+    document.getElementById('register-can-search').checked = false;
+    document.getElementById('register-can-download').checked = false;
+    document.getElementById('register-is-admin').checked = false;
+    document.getElementById('register-error').style.display = 'none';
+    document.getElementById('register-success').style.display = 'none';
+}
+
+function showRegisterModal() {
+    if (!checkConfiguration()) return;
+    if (!isCurrentUserAdmin()) {
+        alert('Admin privileges are required to register users.');
+        return;
+    }
+
+    resetRegisterForm();
+    document.getElementById('register-modal').style.display = 'flex';
+}
+
+function closeRegisterModal() {
+    const modal = document.getElementById('register-modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+async function submitUserRegistration() {
+    const errorDiv = document.getElementById('register-error');
+    const successDiv = document.getElementById('register-success');
+    const submitBtn = document.getElementById('register-submit-btn');
+
+    errorDiv.style.display = 'none';
+    successDiv.style.display = 'none';
+
+    if (!isCurrentUserAdmin()) {
+        errorDiv.textContent = 'Only admins can register new users.';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    const username = document.getElementById('register-username').value.trim();
+    const password = document.getElementById('register-password').value;
+    const confirmPassword = document.getElementById('register-confirm-password').value;
+    const isAdmin = document.getElementById('register-is-admin').checked;
+    const canUpload = isAdmin || document.getElementById('register-can-upload').checked;
+    const canSearch = isAdmin || document.getElementById('register-can-search').checked;
+    const canDownload = isAdmin || document.getElementById('register-can-download').checked;
+
+    if (!username) {
+        errorDiv.textContent = 'Please enter a username.';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    if (!password || password.length < 8) {
+        errorDiv.textContent = 'Password must be at least 8 characters long.';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    if (password !== confirmPassword) {
+        errorDiv.textContent = 'Passwords do not match.';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    const baseUrl = getApiBaseUrl();
+    if (!baseUrl) {
+        errorDiv.textContent = 'API base URL is missing. Please configure it first.';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Registering...';
+
+    try {
+        const response = await fetch(`${baseUrl}/auth/register`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify({
+                user: { name: username, is_admin: isAdmin },
+                permissions: {
+                    can_upload: canUpload,
+                    can_search: canSearch,
+                    can_download: canDownload
+                },
+                secret: { password }
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        document.getElementById('register-username').value = '';
+        document.getElementById('register-password').value = '';
+        document.getElementById('register-confirm-password').value = '';
+        document.getElementById('register-can-upload').checked = false;
+        document.getElementById('register-can-search').checked = false;
+        document.getElementById('register-can-download').checked = false;
+        document.getElementById('register-is-admin').checked = false;
+
+        successDiv.textContent = `User ${data.username} registered successfully.`;
+        successDiv.style.display = 'block';
+        errorDiv.style.display = 'none';
+    } catch (error) {
+        console.error('Error registering user:', error);
+        errorDiv.textContent = error.message || 'Failed to register user.';
+        errorDiv.style.display = 'block';
+        successDiv.style.display = 'none';
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Register User';
+    }
+}
+
+// ============================================
 // Artifact Detail Modal
 // ============================================
 
@@ -452,6 +626,8 @@ window.addEventListener('DOMContentLoaded', function() {
         document.getElementById('config-auth-token').value = savedToken;
     }
 
+    toggleAdminFeatures();
+
     // Handle Enter key in search input
     const searchInput = document.getElementById('search-input');
     if (searchInput) {
@@ -473,11 +649,14 @@ window.addEventListener('DOMContentLoaded', function() {
         const addModal = document.getElementById('add-modal');
         const detailModal = document.getElementById('detail-modal');
         const configModal = document.getElementById('config-modal');
+        const registerModal = document.getElementById('register-modal');
 
         if (event.target === addModal) {
             closeAddModal();
         } else if (event.target === detailModal) {
             closeDetailModal();
+        } else if (event.target === registerModal) {
+            closeRegisterModal();
         } else if (event.target === configModal && getApiBaseUrl()) {
             // Only allow closing config modal if API URL is set
             configModal.style.display = 'none';

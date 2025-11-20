@@ -35,6 +35,10 @@ class TokenPayload(BaseModel):
     iat: int
     exp: int
     jti: str
+    is_admin: bool = False
+    can_upload: bool = False
+    can_search: bool = False
+    can_download: bool = False
 
     @property
     def issued_at(self) -> datetime:
@@ -76,6 +80,10 @@ def create_access_token(
         "iat": issued_at_seconds,
         "exp": expiration_seconds,
         "jti": str(uuid.uuid4()),
+        "is_admin": user.is_admin,
+        "can_upload": user.can_upload,
+        "can_search": user.can_search,
+        "can_download": user.can_download,
     }
 
     logger.info("Issuing access token for user '%s'", user.username)
