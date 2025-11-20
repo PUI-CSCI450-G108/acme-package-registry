@@ -206,6 +206,54 @@ Resources:
             Path: /health
             Method: GET
 
+  # Lambda Function for PUT /authenticate
+  AuthenticateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.auth_login.handler
+      Description: Issue authentication token
+      FunctionName: acme-registry-authenticate
+      Events:
+        AuthenticateApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /authenticate
+            Method: PUT
+
+  # Lambda Function for POST /auth/register
+  RegisterUserFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.auth_register.handler
+      Description: Register new user (admin only)
+      FunctionName: acme-registry-register-user
+      Events:
+        RegisterUserApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /auth/register
+            Method: POST
+
+  # Lambda Function for POST /auth/logout
+  LogoutFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.auth_logout.handler
+      Description: Logout active token
+      FunctionName: acme-registry-logout
+      Events:
+        LogoutApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /auth/logout
+            Method: POST
+
   # Lambda Function for GET /artifact/byName/{name}
   GetArtifactByNameFunction:
     Type: AWS::Serverless::Function
