@@ -56,15 +56,6 @@ class UserRepository(ABC):
     def delete_user(self, username: str) -> bool:
         ...
 
-    @abstractmethod
-    def get_user(self, username: str) -> Optional[User]:
-        ...
-
-    @abstractmethod
-    def delete_user(self, username: str) -> bool:
-        ...
-
-
 class InMemoryUserRepository(UserRepository):
     """Simple repository that keeps user data in process memory."""
 
