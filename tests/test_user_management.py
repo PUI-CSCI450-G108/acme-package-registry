@@ -17,7 +17,7 @@ def test_create_user_and_verify_password():
     user = create_user(
         repository,
         "alice",
-        "s3cret",
+        "s3cretpw",
         can_upload=True,
         can_search=True,
         can_download=False,
@@ -27,7 +27,7 @@ def test_create_user_and_verify_password():
     assert user.can_upload is True
     assert user.can_search is True
     assert user.can_download is False
-    assert verify_password("s3cret", user.password_hash)
+    assert verify_password("s3cretpw", user.password_hash)
     assert not verify_password("wrong", user.password_hash)
 
 
@@ -41,7 +41,7 @@ def test_create_user_requires_unique_username():
 
 def test_get_and_delete_user():
     repository = InMemoryUserRepository()
-    create_user(repository, "carol", "pw", can_download=True)
+    create_user(repository, "carol", "pw123456", can_download=True)
 
     retrieved = get_user_by_username(repository, "carol")
     assert retrieved is not None
