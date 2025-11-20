@@ -25,7 +25,7 @@ def user():
 
 
 def test_create_and_decode_token(user):
-    issued_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    issued_at = datetime.now(timezone.utc)
     token = create_access_token(user, now=issued_at)
     payload = decode_token(token)
 
