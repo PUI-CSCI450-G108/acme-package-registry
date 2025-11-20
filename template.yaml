@@ -399,6 +399,29 @@ Resources:
             Path: /artifact/{artifact_type}/{id}/cost
             Method: GET
 
+  # Lambda Function for POST /artifact/model/{id}/license-check
+  LicenseCheckFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.license_check.handler
+      Description: Check license compatibility between model and GitHub repo
+      FunctionName: acme-registry-license-check
+      Environment:
+        Variables:
+          HF_TOKEN: !Ref HuggingFaceToken
+          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ArtifactsBucket
+      Events:
+        LicenseCheckApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /artifact/model/{id}/license-check
+            Method: POST
+
 
     # Lambda Function for GET /audit/package-confusion
   PackageConfusionAuditFunction:
@@ -545,3 +568,13 @@ Outputs:
   GetArtifactCostFunctionName:
     Description: "Get Artifact Cost Lambda Function Name"
     Value: !Ref GetArtifactCostFunction
+
+  LicenseCheckFunctionArn:
+    Description: "License Check Lambda Function ARN"
+    Value: !GetAtt LicenseCheckFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-LicenseCheckFunctionArn"
+
+  LicenseCheckFunctionName:
+    Description: "License Check Lambda Function Name"
+    Value: !Ref LicenseCheckFunction

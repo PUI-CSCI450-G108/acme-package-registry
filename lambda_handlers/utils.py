@@ -451,6 +451,14 @@ def evaluate_model(
         if k.endswith("_latency") and isinstance(v, int) and v <= 0:
             result[k] = 1
 
+    # Extract license information for license-check endpoint
+    license_info = None
+    if hasattr(model_info, "cardData") and model_info.cardData:
+        license_info = model_info.cardData.get("license")
+
+    if license_info:
+        result["license_info"] = license_info
+
     return convert_to_model_rating(result)
 
 
