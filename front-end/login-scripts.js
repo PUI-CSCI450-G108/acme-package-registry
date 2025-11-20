@@ -34,13 +34,20 @@ async function handleLogin(event) {
             })
         });
 
+        const responseText = await response.text();
         if (!response.ok) {
-            const message = await response.text();
-            throw new Error(message || `Login failed with status ${response.status}`);
+            let errorMessage = `Login failed with status ${response.status}`;
+            try {
+                const errorData = JSON.parse(responseText);
+                errorMessage = errorData.error || errorMessage;
+            } catch {
+                errorMessage = responseText || errorMessage;
+            }
+            throw new Error(errorMessage);
         }
 
         // Lambda returns the token as a plain string (e.g., "bearer <jwt>").
-        const tokenText = (await response.text()).trim();
+        const tokenText = responseText.trim();
         localStorage.setItem('authToken', tokenText);
 
         // Redirect to main application after successful authentication.
