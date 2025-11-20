@@ -42,6 +42,48 @@ function getAuthToken() {
     return localStorage.getItem('authToken') || '';
 }
 
+function decodeBase64Url(encoded) {
+    const sanitized = encoded.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = sanitized.padEnd(sanitized.length + (4 - (sanitized.length % 4)) % 4, '=');
+    return atob(padded);
+}
+
+function getStoredUsername() {
+    const savedUsername = localStorage.getItem('username');
+    if (savedUsername) {
+        return savedUsername;
+    }
+
+    const token = getAuthToken();
+    if (!token) {
+        return null;
+    }
+
+    try {
+        const rawToken = token.toLowerCase().startsWith('bearer ')
+            ? token.slice(7)
+            : token;
+        const payloadSegment = rawToken.split('.')[1];
+        if (!payloadSegment) {
+            return null;
+        }
+        const decodedPayload = decodeBase64Url(payloadSegment);
+        const payload = JSON.parse(decodedPayload);
+        return payload.sub || null;
+    } catch (error) {
+        console.warn('Unable to derive username from token', error);
+        return null;
+    }
+}
+
+function updateWelcomeMessage() {
+    const welcomeElement = document.getElementById('welcome-message');
+    if (!welcomeElement) return;
+
+    const username = getStoredUsername();
+    welcomeElement.textContent = username ? `Welcome, ${username}!` : 'Welcome!';
+}
+
 function getHeaders() {
     const headers = {
         'Content-Type': 'application/json'
@@ -342,6 +384,87 @@ function showAddArtifactModal() {
     document.getElementById('add-success').style.display = 'none';
 }
 
+// ============================================
+// User Registration Modal
+// ============================================
+
+function showRegisterUserModal() {
+    if (!checkConfiguration()) return;
+
+    document.getElementById('register-modal').style.display = 'flex';
+    document.getElementById('register-username').value = '';
+    document.getElementById('register-password').value = '';
+    document.getElementById('register-can-upload').checked = true;
+    document.getElementById('register-can-search').checked = true;
+    document.getElementById('register-can-download').checked = true;
+    document.getElementById('register-is-admin').checked = false;
+    document.getElementById('register-error').style.display = 'none';
+    document.getElementById('register-success').style.display = 'none';
+}
+
+function closeRegisterModal() {
+    document.getElementById('register-modal').style.display = 'none';
+}
+
+async function registerUser() {
+    const username = document.getElementById('register-username').value.trim();
+    const password = document.getElementById('register-password').value.trim();
+    const canUpload = document.getElementById('register-can-upload').checked;
+    const canSearch = document.getElementById('register-can-search').checked;
+    const canDownload = document.getElementById('register-can-download').checked;
+    const isAdmin = document.getElementById('register-is-admin').checked;
+    const submitBtn = document.getElementById('register-submit-btn');
+    const errorDiv = document.getElementById('register-error');
+    const successDiv = document.getElementById('register-success');
+
+    errorDiv.style.display = 'none';
+    successDiv.style.display = 'none';
+
+    if (!username || !password) {
+        errorDiv.textContent = 'Username and password are required.';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Creating...';
+
+    try {
+        const baseUrl = getApiBaseUrl();
+        const payload = {
+            user: { name: username, is_admin: isAdmin },
+            secret: { password },
+            permissions: {
+                can_upload: canUpload,
+                can_search: canSearch,
+                can_download: canDownload,
+            },
+        };
+
+        const response = await fetch(`${baseUrl}/auth/register`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(payload),
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        successDiv.textContent = `User '${data.username || username}' registered successfully.`;
+        successDiv.style.display = 'block';
+    } catch (error) {
+        console.error('Error registering user:', error);
+        errorDiv.textContent = error.message || 'Failed to register user.';
+        errorDiv.style.display = 'block';
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Create User';
+    }
+}
+
 function closeAddModal() {
     document.getElementById('add-modal').style.display = 'none';
 }
@@ -452,6 +575,8 @@ window.addEventListener('DOMContentLoaded', function() {
         document.getElementById('config-auth-token').value = savedToken;
     }
 
+    updateWelcomeMessage();
+
     // Handle Enter key in search input
     const searchInput = document.getElementById('search-input');
     if (searchInput) {
@@ -473,11 +598,14 @@ window.addEventListener('DOMContentLoaded', function() {
         const addModal = document.getElementById('add-modal');
         const detailModal = document.getElementById('detail-modal');
         const configModal = document.getElementById('config-modal');
+        const registerModal = document.getElementById('register-modal');
 
         if (event.target === addModal) {
             closeAddModal();
         } else if (event.target === detailModal) {
             closeDetailModal();
+        } else if (event.target === registerModal) {
+            closeRegisterModal();
         } else if (event.target === configModal && getApiBaseUrl()) {
             // Only allow closing config modal if API URL is set
             configModal.style.display = 'none';

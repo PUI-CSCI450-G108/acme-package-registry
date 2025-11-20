@@ -14,9 +14,15 @@
     <div class="container">
         <!-- Header -->
         <header class="header">
+            <div class="header-top">
+                <div class="welcome-text" id="welcome-message">Welcome!</div>
+                <div class="header-actions">
+                    <button onclick="showRegisterUserModal()" class="register-btn">Register User</button>
+                    <button onclick="logout()" class="logout-btn">Logout</button>
+                </div>
+            </div>
             <h1>ACME Package Registry</h1>
             <p class="subtitle">Trustworthy Model, Dataset & Code Repository</p>
-            <button onclick="logout()" class="logout-btn">Logout</button>
         </header>
 
         <!-- Search and Actions Bar -->
@@ -94,6 +100,56 @@
             <div class="modal-footer">
                 <button onclick="closeAddModal()" class="btn-secondary">Cancel</button>
                 <button onclick="createArtifact()" class="btn-primary" id="submit-btn">Add Artifact</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Register User Modal -->
+    <div id="register-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Register New User</h2>
+                <button onclick="closeRegisterModal()" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-hint">Admin only: create new users and manage their permissions.</p>
+                <div id="register-error" class="modal-error" style="display: none;"></div>
+                <div id="register-success" class="modal-success" style="display: none;"></div>
+                <div class="form-group">
+                    <label for="register-username">Username</label>
+                    <input type="text" id="register-username" class="input-field" placeholder="new-user" />
+                </div>
+                <div class="form-group">
+                    <label for="register-password">Password</label>
+                    <input type="password" id="register-password" class="input-field" placeholder="••••••••" />
+                </div>
+                <div class="form-group checkbox-group">
+                    <label>Permissions</label>
+                    <div class="checkbox-row">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="register-can-upload" checked />
+                            <span>Can Upload</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="register-can-search" checked />
+                            <span>Can Search</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="register-can-download" checked />
+                            <span>Can Download</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="register-is-admin" />
+                        <span>Grant admin rights</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeRegisterModal()" class="btn-secondary">Cancel</button>
+                <button onclick="registerUser()" class="btn-primary" id="register-submit-btn">Create User</button>
             </div>
         </div>
     </div>
