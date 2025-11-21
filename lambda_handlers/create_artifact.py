@@ -13,13 +13,13 @@ from typing import Dict, Any
 from lambda_handlers.utils import (
     create_response,
     evaluate_model,
-    generate_artifact_id,
     artifact_exists_in_s3,
     save_artifact_to_s3,
     MIN_NET_SCORE_THRESHOLD,
     log_event,
 )
 from src.artifact_store import S3ArtifactStore
+from src.artifact_utils import generate_artifact_id
 
 
 def handler(event: Dict[str, Any], context: Any) -> Dict:
