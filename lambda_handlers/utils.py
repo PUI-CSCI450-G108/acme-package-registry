@@ -405,41 +405,41 @@ def convert_to_model_rating(ndjson_result: dict) -> dict:
 
 
 # Import evaluation logic
-# from src.metrics.helpers.pull_model import pull_model_info, canonicalize_hf_url
-# from src.orchestrator import calculate_all_metrics
-# def evaluate_model(
-    
-#     url: str,
-#     *,
-#     artifact_store: Optional[S3ArtifactStore] = None,
-#     event: Optional[Dict[str, Any]] = None,
-#     context: Optional[Any] = None,
-# ) -> dict:
-#     """Evaluate a model and return rating dict."""
-#     log_event("info", f"Evaluating model: {url}", event=event, context=context)
+from src.metrics.helpers.pull_model import pull_model_info, canonicalize_hf_url
+from src.orchestrator import calculate_all_metrics
+def evaluate_model(
+   
+    url: str,
+    *,
+    artifact_store: Optional[S3ArtifactStore] = None,
+    event: Optional[Dict[str, Any]] = None,
+    context: Optional[Any] = None,
+) -> dict:
+    """Evaluate a model and return rating dict."""
+    log_event("info", f"Evaluating model: {url}", event=event, context=context)
 
-#     url = canonicalize_hf_url(url) if url.startswith("https://huggingface.co/") else url
+    url = canonicalize_hf_url(url) if url.startswith("https://huggingface.co/") else url
 
-#     # Fetch and evaluate
-#     model_info = pull_model_info(url)
-#     if not model_info:
-#         raise ValueError("Could not retrieve model information")
+    # Fetch and evaluate
+    model_info = pull_model_info(url)
+    if not model_info:
+        raise ValueError("Could not retrieve model information")
 
-#     ndjson_output = calculate_all_metrics(model_info, url, artifact_store)
-#     result = json.loads(ndjson_output)
+    ndjson_output = calculate_all_metrics(model_info, url, artifact_store)
+    result = json.loads(ndjson_output)
 
-#     # Post-process name
-#     if result.get("category") == "MODEL":
-#         name = result.get("name", "")
-#         if isinstance(name, str) and "/" in name:
-#             result["name"] = name.split("/")[-1]
+    # Post-process name
+    if result.get("category") == "MODEL":
+        name = result.get("name", "")
+        if isinstance(name, str) and "/" in name:
+            result["name"] = name.split("/")[-1]
 
-#     # Ensure latencies > 0
-#     for k, v in list(result.items()):
-#         if k.endswith("_latency") and isinstance(v, int) and v <= 0:
-#             result[k] = 1
+    # Ensure latencies > 0
+    for k, v in list(result.items()):
+        if k.endswith("_latency") and isinstance(v, int) and v <= 0:
+            result[k] = 1
 
-#     return convert_to_model_rating(result)
+    return convert_to_model_rating(result)
 
 
 # --- URL Validation Helpers ---
