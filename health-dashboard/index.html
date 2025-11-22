@@ -1,3 +1,4 @@
+//Line 56 needs to be the correct endpoint for health data
 <!doctype html>
 <html lang="en">
 <head>
@@ -52,7 +53,7 @@
   </div>
 
   <script>
-    const HEALTH_URL = "/health";
+    const HEALTH_URL = "/health"; //URGENT CHANGE THIS TO THE CORRECT ENDPOINT
     const REFRESH_MS = 15000;
 
     async function fetchHealth() {

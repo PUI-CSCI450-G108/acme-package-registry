@@ -198,6 +198,9 @@ Resources:
       FunctionName: acme-registry-health-check
       Timeout: 10
       MemorySize: 128
+      Environment:
+        Variables:
+          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
       Events:
         HealthCheckApi:
           Type: HttpApi
@@ -213,7 +216,7 @@ Resources:
       CodeUri: .
       Handler: lambda_handlers.health_check_live.handler
       Description: Health check live endpoint
-      FunctionName: acme-registry-health-check
+      FunctionName: acme-registry-health-check-live
       Timeout: 10
       MemorySize: 128
       Events:

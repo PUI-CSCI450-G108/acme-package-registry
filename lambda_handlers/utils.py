@@ -3,7 +3,6 @@ Shared utility functions for Lambda handlers.
 
 Includes S3 operations, response formatting, and model evaluation helpers.
 """
-
 import os
 import json
 import logging
@@ -12,15 +11,6 @@ from botocore.exceptions import ClientError
 from typing import Dict, Any, Optional, Iterable, List, Union
 from src.artifact_store import S3ArtifactStore
 
-# Setup environment
-os.environ.setdefault("GIT_LFS_SKIP_SMUDGE", "1")
-os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
-
-if not os.getenv("HF_TOKEN") and os.getenv("HF_API_TOKEN"):
-    os.environ["HF_TOKEN"] = os.environ["HF_API_TOKEN"]
-
-if os.getenv("HF_TOKEN") and not os.getenv("HUGGINGFACE_HUB_TOKEN"):
-    os.environ["HUGGINGFACE_HUB_TOKEN"] = os.getenv("HF_TOKEN")
 
 def _configure_logger() -> logging.Logger:
     """Initialize a dedicated Lambda logger shipping to CloudWatch."""
@@ -46,8 +36,6 @@ def _configure_logger() -> logging.Logger:
 
 # Setup logging for CloudWatch
 logger = _configure_logger()
-
-
 LogLevel = Union[int, str]
 
 
@@ -129,11 +117,6 @@ def log_event(
         log_kwargs["exc_info"] = exc_info
 
     logger.log(level_value, message, **log_kwargs)
-
-# Import evaluation logic
-from src.metrics.helpers.pull_model import pull_model_info, canonicalize_hf_url
-from src.orchestrator import calculate_all_metrics
-from src.artifact_utils import generate_artifact_id
 
 # S3 storage for artifacts
 BUCKET_NAME = os.getenv("ARTIFACTS_BUCKET")
@@ -420,37 +403,41 @@ def convert_to_model_rating(ndjson_result: dict) -> dict:
     return result
 
 
-def evaluate_model(
-    url: str,
-    *,
-    artifact_store: Optional[S3ArtifactStore] = None,
-    event: Optional[Dict[str, Any]] = None,
-    context: Optional[Any] = None,
-) -> dict:
-    """Evaluate a model and return rating dict."""
-    log_event("info", f"Evaluating model: {url}", event=event, context=context)
+# Import evaluation logic
+# from src.metrics.helpers.pull_model import pull_model_info, canonicalize_hf_url
+# from src.orchestrator import calculate_all_metrics
+# def evaluate_model(
+    
+#     url: str,
+#     *,
+#     artifact_store: Optional[S3ArtifactStore] = None,
+#     event: Optional[Dict[str, Any]] = None,
+#     context: Optional[Any] = None,
+# ) -> dict:
+#     """Evaluate a model and return rating dict."""
+#     log_event("info", f"Evaluating model: {url}", event=event, context=context)
 
-    url = canonicalize_hf_url(url) if url.startswith("https://huggingface.co/") else url
+#     url = canonicalize_hf_url(url) if url.startswith("https://huggingface.co/") else url
 
-    # Fetch and evaluate
-    model_info = pull_model_info(url)
-    if not model_info:
-        raise ValueError("Could not retrieve model information")
+#     # Fetch and evaluate
+#     model_info = pull_model_info(url)
+#     if not model_info:
+#         raise ValueError("Could not retrieve model information")
 
-    ndjson_output = calculate_all_metrics(model_info, url, artifact_store)
-    result = json.loads(ndjson_output)
+#     ndjson_output = calculate_all_metrics(model_info, url, artifact_store)
+#     result = json.loads(ndjson_output)
 
-    # Post-process name
-    if result.get("category") == "MODEL":
-        name = result.get("name", "")
-        if isinstance(name, str) and "/" in name:
-            result["name"] = name.split("/")[-1]
+#     # Post-process name
+#     if result.get("category") == "MODEL":
+#         name = result.get("name", "")
+#         if isinstance(name, str) and "/" in name:
+#             result["name"] = name.split("/")[-1]
 
-    # Ensure latencies > 0
-    for k, v in list(result.items()):
-        if k.endswith("_latency") and isinstance(v, int) and v <= 0:
-            result[k] = 1
+#     # Ensure latencies > 0
+#     for k, v in list(result.items()):
+#         if k.endswith("_latency") and isinstance(v, int) and v <= 0:
+#             result[k] = 1
 
-    return convert_to_model_rating(result)
+#     return convert_to_model_rating(result)
 
 
