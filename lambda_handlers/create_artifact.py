@@ -9,17 +9,19 @@ from time import perf_counter
 import logging
 import os
 from typing import Dict, Any
+from huggingface_hub import snapshot_download
 
 from lambda_handlers.utils import (
     create_response,
     evaluate_model,
-    generate_artifact_id,
     artifact_exists_in_s3,
     save_artifact_to_s3,
     MIN_NET_SCORE_THRESHOLD,
     log_event,
     is_valid_artifact_url,
+    upload_essential_hf_files_to_s3,
 )
+from src.artifact_utils import generate_artifact_id
 from src.artifact_store import S3ArtifactStore
 
 
@@ -208,7 +210,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
             "type": artifact_type
         }
 
-        # Store artifact in S3
+        # Store artifact data in S3
         artifact_data = {
             "url": url,
             "metadata": metadata,
@@ -220,7 +222,21 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
         latency = perf_counter() - start_time
         log_event(
             "info",
-            f"Registered artifact {artifact_id}: {name}",
+            f"Registered artifact Data {artifact_id}: {name}",
+            event=event,
+            context=context,
+            model_id=artifact_id,
+            latency=latency,
+            status=201,
+        )
+
+        local_dir = snapshot_download(repo_id="bert-base-uncased")
+        manifest = upload_essential_hf_files_to_s3(local_dir, s3_prefix="artifacts/")
+
+        latency = perf_counter() - start_time
+        log_event(
+            "info",
+            f"Uploaded essential HF files for artifact {artifact_id}",
             event=event,
             context=context,
             model_id=artifact_id,
