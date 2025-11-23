@@ -15,16 +15,32 @@
             </div>
 
             <div class="login-body">
-                <p class="login-message">Press Enter to continue</p>
+                <p class="login-message">Sign in to continue</p>
                 <form id="login-form" onsubmit="handleLogin(event)">
+                    <input
+                        type="url"
+                        id="api-url-input"
+                        class="login-input"
+                        placeholder="API Base URL (e.g. https://example.execute-api...)"
+                        required
+                    >
                     <input
                         type="text"
                         id="username-input"
                         class="login-input"
-                        placeholder="Username (optional)"
+                        placeholder="Username"
                         autofocus
+                        required
                     >
-                    <button type="submit" class="login-btn">Continue</button>
+                    <input
+                        type="password"
+                        id="password-input"
+                        class="login-input"
+                        placeholder="Password"
+                        required
+                    >
+                    <div id="login-error" class="login-error" style="display: none;"></div>
+                    <button type="submit" class="login-btn">Login</button>
                 </form>
             </div>
         </div>
