@@ -40,6 +40,16 @@ logger = _configure_logger()
 LogLevel = Union[int, str]
 
 
+def get_header(event: Dict[str, Any], name: str) -> Optional[str]:
+    """Retrieve a header value from the API Gateway event, case-insensitively."""
+
+    headers = event.get("headers") or {}
+    for key, value in headers.items():
+        if key.lower() == name.lower():
+            return value
+    return None
+
+
 def log_event(
     level: LogLevel,
     message: str,
@@ -416,6 +426,10 @@ def evaluate_model(
     context: Optional[Any] = None,
 ) -> dict:
     """Evaluate a model and return rating dict."""
+    # Lazy import evaluation logic to reduce cold start time for handlers that don't evaluate
+    from src.metrics.helpers.pull_model import pull_model_info, canonicalize_hf_url
+    from src.orchestrator import calculate_all_metrics
+
     log_event("info", f"Evaluating model: {url}", event=event, context=context)
 
     url = canonicalize_hf_url(url) if url.startswith("https://huggingface.co/") else url

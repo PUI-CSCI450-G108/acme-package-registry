@@ -16,6 +16,7 @@
         <header class="header">
             <h1>ACME Package Registry</h1>
             <p class="subtitle">Trustworthy Model, Dataset & Code Repository</p>
+            <button onclick="logout()" class="logout-btn">Logout</button>
         </header>
 
         <!-- Search and Actions Bar -->
@@ -29,7 +30,10 @@
                 >
                 <button onclick="searchArtifacts()" class="search-btn">Search</button>
             </div>
-            <button onclick="showAddArtifactModal()" class="add-btn">+ Add Artifact</button>
+            <div class="action-buttons">
+                <button onclick="showRegisterModal()" class="add-btn" id="register-user-btn" style="display: none;">+ Register User</button>
+                <button onclick="showAddArtifactModal()" class="add-btn">+ Add Artifact</button>
+            </div>
         </div>
 
         <!-- Loading State -->
@@ -129,6 +133,45 @@
             </div>
             <div class="modal-footer">
                 <button onclick="closeDetailModal()" class="btn-primary">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Register User Modal -->
+    <div id="register-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Register New User</h2>
+                <button onclick="closeRegisterModal()" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="register-username">Username</label>
+                    <input type="text" id="register-username" class="input-field" placeholder="Enter username">
+                </div>
+                <div class="form-group">
+                    <label for="register-password">Password</label>
+                    <input type="password" id="register-password" class="input-field" placeholder="Minimum 8 characters">
+                </div>
+                <div class="form-group">
+                    <label for="register-confirm-password">Confirm Password</label>
+                    <input type="password" id="register-confirm-password" class="input-field" placeholder="Re-enter password">
+                </div>
+                <div class="form-group">
+                    <label>Permissions</label>
+                    <div class="checkbox-group">
+                        <label><input type="checkbox" id="register-can-upload"> Can upload</label>
+                        <label><input type="checkbox" id="register-can-search"> Can search</label>
+                        <label><input type="checkbox" id="register-can-download"> Can download</label>
+                        <label><input type="checkbox" id="register-is-admin"> Is admin (grants all permissions)</label>
+                    </div>
+                </div>
+                <div id="register-error" class="modal-error" style="display: none;"></div>
+                <div id="register-success" class="modal-success" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeRegisterModal()" class="btn-secondary">Cancel</button>
+                <button onclick="submitUserRegistration()" class="btn-primary" id="register-submit-btn">Register User</button>
             </div>
         </div>
     </div>
