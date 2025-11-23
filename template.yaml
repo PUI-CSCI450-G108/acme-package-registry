@@ -307,11 +307,20 @@ Resources:
         - S3ReadPolicy:
             BucketName: !Ref ArtifactsBucket
       Events:
+        # GET /artifact/{artifact_id}
         GetArtifactByIdApi:
           Type: HttpApi
           Properties:
             ApiId: !Ref AcmeApiGateway
-            Path: /artifacts/{artifact_type}/{id}
+            Path: /artifact/{artifact_id}
+            Method: GET
+
+        # GET /artifact/{artifact_type}/{artifact_id}
+        GetArtifactByTypeAndIdApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /artifact/{artifact_type}/{artifact_id}
             Method: GET
   
 
