@@ -7,10 +7,10 @@ Includes S3 operations, response formatting, and model evaluation helpers.
 import os
 import json
 import logging
-import uuid
 import boto3
 from botocore.exceptions import ClientError
-from typing import Dict, Any, Optional, Iterable, List
+from typing import Dict, Any, Optional, Iterable, List, Union
+from src.artifact_store import S3ArtifactStore
 
 # Setup environment
 os.environ.setdefault("GIT_LFS_SKIP_SMUDGE", "1")
@@ -22,13 +22,123 @@ if not os.getenv("HF_TOKEN") and os.getenv("HF_API_TOKEN"):
 if os.getenv("HF_TOKEN") and not os.getenv("HUGGINGFACE_HUB_TOKEN"):
     os.environ["HUGGINGFACE_HUB_TOKEN"] = os.getenv("HF_TOKEN")
 
-# Setup logging
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+def _configure_logger() -> logging.Logger:
+    """Initialize a dedicated Lambda logger shipping to CloudWatch."""
 
-# Import evaluation logic
-from src.metrics.helpers.pull_model import pull_model_info, canonicalize_hf_url
-from src.orchestrator import calculate_all_metrics
+    level_name = os.getenv("LAMBDA_LOG_LEVEL", "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
+
+    log = logging.getLogger("acme_lambda")
+    log.setLevel(level)
+    log.propagate = False  # avoid duplicate entries if root already streams
+
+    if not log.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter('[%(levelname)s] %(message)s'))
+        handler.setLevel(level)
+        log.addHandler(handler)
+    else:
+        for handler in log.handlers:
+            handler.setLevel(level)
+
+    return log
+
+
+# Setup logging for CloudWatch
+logger = _configure_logger()
+
+
+LogLevel = Union[int, str]
+
+
+def get_header(event: Dict[str, Any], name: str) -> Optional[str]:
+    """Retrieve a header value from the API Gateway event, case-insensitively."""
+
+    headers = event.get("headers") or {}
+    for key, value in headers.items():
+        if key.lower() == name.lower():
+            return value
+    return None
+
+
+def log_event(
+    level: LogLevel,
+    message: str,
+    *,
+    event: Optional[Dict[str, Any]] = None,
+    context: Optional[Any] = None,
+    model_id: Optional[str] = None,
+    latency: Optional[float] = None,
+    status: Optional[int] = None,
+    error_code: Optional[str] = None,
+    exc_info: Any = None,
+    **kwargs: Any,
+) -> None:
+    """Log a structured event enriched with Lambda request metadata."""
+
+    if isinstance(level, str):
+        level_upper = level.upper()
+        if not hasattr(logging, level_upper):
+            raise ValueError(f"Invalid log level: {level!r}")
+        level_value = getattr(logging, level_upper)
+    else:
+        level_value = level
+
+    request_context = event.get("requestContext", {}) if isinstance(event, dict) else {}
+
+    request_id = None
+    if context is not None:
+        request_id = getattr(context, "aws_request_id", None)
+    if not request_id:
+        request_id = request_context.get("requestId")
+
+    user = None
+    if request_context:
+        identity = request_context.get("identity", {})
+        authorizer = request_context.get("authorizer", {})
+        http_context = request_context.get("http", {})
+        user = (
+            authorizer.get("principalId")
+            or identity.get("userArn")
+            or identity.get("user")
+            or http_context.get("user")
+            or request_context.get("accountId")
+        )
+
+    endpoint = None
+    if request_context:
+        http_context = request_context.get("http", {})
+        endpoint = (
+            request_context.get("resourcePath")
+            or request_context.get("path")
+            or http_context.get("path")
+            or request_context.get("resource")
+        )
+
+    extra = {
+        "request_id": request_id,
+        "user": user,
+        "model_id": model_id,
+        "endpoint": endpoint,
+        "latency": latency,
+        "status": status,
+        "error_code": error_code,
+    }
+
+    log_kwargs = dict(kwargs)
+    if "extra" in log_kwargs:
+        user_extra = log_kwargs.pop("extra")
+        if not isinstance(user_extra, dict):
+            raise TypeError("The 'extra' argument passed to log_event must be a dict.")
+        # Merge user-provided extra with our extra; function's extra takes precedence
+        merged_extra = {**user_extra, **extra}
+        log_kwargs["extra"] = merged_extra
+    else:
+        log_kwargs["extra"] = extra
+    if exc_info:
+        log_kwargs["exc_info"] = exc_info
+
+    logger.log(level_value, message, **log_kwargs)
 
 # S3 storage for artifacts
 BUCKET_NAME = os.getenv("ARTIFACTS_BUCKET")
@@ -42,7 +152,12 @@ MIN_NET_SCORE_THRESHOLD = float(os.getenv("MIN_NET_SCORE", "0.5"))
 def save_artifact_to_s3(artifact_id: str, artifact_data: dict) -> None:
     """Save artifact data to S3 as JSON."""
     if not s3_client or not BUCKET_NAME:
-        logger.warning("S3 not configured, skipping save")
+        log_event(
+            "warning",
+            "S3 not configured, skipping save",
+            event=None,
+            context=None,
+        )
         return
 
     key = f"artifacts/{artifact_id}.json"
@@ -52,13 +167,24 @@ def save_artifact_to_s3(artifact_id: str, artifact_data: dict) -> None:
         Body=json.dumps(artifact_data),
         ContentType="application/json"
     )
-    logger.info(f"Saved artifact {artifact_id} to S3")
+    log_event(
+        "info",
+        f"Saved artifact {artifact_id} to S3",
+        event=None,
+        context=None,
+        model_id=artifact_id,
+    )
 
 
 def load_artifact_from_s3(artifact_id: str) -> Optional[dict]:
     """Load artifact data from S3."""
     if not s3_client or not BUCKET_NAME:
-        logger.warning("S3 not configured, cannot load")
+        log_event(
+            "warning",
+            "S3 not configured, cannot load",
+            event=None,
+            context=None,
+        )
         return None
 
     key = f"artifacts/{artifact_id}.json"
@@ -69,10 +195,24 @@ def load_artifact_from_s3(artifact_id: str) -> Optional[dict]:
     except ClientError as e:
         if e.response['Error']['Code'] == 'NoSuchKey':
             return None
-        logger.error(f"Error loading artifact {artifact_id} from S3: {e}")
+        log_event(
+            "error",
+            f"Error loading artifact {artifact_id} from S3: {e}",
+            event=None,
+            context=None,
+            model_id=artifact_id,
+            error_code="s3_load_failed",
+        )
         return None
     except Exception as e:
-        logger.error(f"Error loading artifact {artifact_id} from S3: {e}")
+        log_event(
+            "error",
+            f"Error loading artifact {artifact_id} from S3: {e}",
+            event=None,
+            context=None,
+            model_id=artifact_id,
+            error_code="s3_load_failed",
+        )
         return None
 
 
@@ -88,17 +228,36 @@ def artifact_exists_in_s3(artifact_id: str) -> bool:
     except ClientError as e:
         if e.response['Error']['Code'] in ['404', 'NoSuchKey']:
             return False
-        logger.error(f"Error checking artifact {artifact_id} existence in S3: {e}")
+        log_event(
+            "error",
+            f"Error checking artifact {artifact_id} existence in S3: {e}",
+            event=None,
+            context=None,
+            model_id=artifact_id,
+            error_code="s3_head_failed",
+        )
         return False
     except Exception as e:
-        logger.error(f"Unexpected error checking artifact {artifact_id} in S3: {e}")
+        log_event(
+            "error",
+            f"Unexpected error checking artifact {artifact_id} in S3: {e}",
+            event=None,
+            context=None,
+            model_id=artifact_id,
+            error_code="s3_head_failed",
+        )
         return False
 
 
 def list_all_artifacts_from_s3() -> Dict[str, dict]:
     """List all artifacts from S3 (for byName search)."""
     if not s3_client or not BUCKET_NAME:
-        logger.warning("S3 not configured, returning empty list")
+        log_event(
+            "warning",
+            "S3 not configured, returning empty list",
+            event=None,
+            context=None,
+        )
         return {}
 
     artifacts = {}
@@ -119,13 +278,33 @@ def list_all_artifacts_from_s3() -> Dict[str, dict]:
                     except ClientError as e:
                         if e.response['Error']['Code'] == 'NoSuchKey':
                             continue
-                        logger.error(f"Error loading artifact {artifact_id} from S3: {e}")
+                        log_event(
+                            "error",
+                            f"Error loading artifact {artifact_id} from S3: {e}",
+                            event=None,
+                            context=None,
+                            model_id=artifact_id,
+                            error_code="s3_load_failed",
+                        )
                     except Exception as e:
-                        logger.error(f"Error loading artifact {artifact_id} from S3: {e}")
+                        log_event(
+                            "error",
+                            f"Error loading artifact {artifact_id} from S3: {e}",
+                            event=None,
+                            context=None,
+                            model_id=artifact_id,
+                            error_code="s3_load_failed",
+                        )
 
         return artifacts
     except Exception as e:
-        logger.error(f"Error listing artifacts from S3: {e}")
+        log_event(
+            "error",
+            f"Error listing artifacts from S3: {e}",
+            event=None,
+            context=None,
+            error_code="s3_list_failed",
+        )
         return {}
 
 
@@ -150,7 +329,12 @@ def delete_all_artifacts_from_s3() -> int:
     """
 
     if not s3_client or not BUCKET_NAME:
-        logger.warning("S3 not configured, reset skipped")
+        log_event(
+            "warning",
+            "S3 not configured, reset skipped",
+            event=None,
+            context=None,
+        )
         return 0
 
     try:
@@ -170,13 +354,30 @@ def delete_all_artifacts_from_s3() -> int:
                 Delete={"Objects": chunk, "Quiet": True}
             )
 
-        logger.info(f"Deleted {delete_count} artifact object(s) from S3")
+        log_event(
+            "info",
+            f"Deleted {delete_count} artifact object(s) from S3",
+            event=None,
+            context=None,
+        )
         return delete_count
     except ClientError as e:
-        logger.error(f"Error resetting artifacts in S3: {e}")
+        log_event(
+            "error",
+            f"Error resetting artifacts in S3: {e}",
+            event=None,
+            context=None,
+            error_code="s3_reset_failed",
+        )
         raise
     except Exception as e:
-        logger.error(f"Unexpected error during S3 reset: {e}")
+        log_event(
+            "error",
+            f"Unexpected error during S3 reset: {e}",
+            event=None,
+            context=None,
+            error_code="s3_reset_failed",
+        )
         raise
 
 
@@ -224,9 +425,19 @@ def convert_to_model_rating(ndjson_result: dict) -> dict:
     return result
 
 
-def evaluate_model(url: str) -> dict:
+def evaluate_model(
+    url: str,
+    *,
+    artifact_store: Optional[S3ArtifactStore] = None,
+    event: Optional[Dict[str, Any]] = None,
+    context: Optional[Any] = None,
+) -> dict:
     """Evaluate a model and return rating dict."""
-    logger.info(f"Evaluating model: {url}")
+    # Lazy import evaluation logic to reduce cold start time for handlers that don't evaluate
+    from src.metrics.helpers.pull_model import pull_model_info, canonicalize_hf_url
+    from src.orchestrator import calculate_all_metrics
+
+    log_event("info", f"Evaluating model: {url}", event=event, context=context)
 
     url = canonicalize_hf_url(url) if url.startswith("https://huggingface.co/") else url
 
@@ -235,7 +446,7 @@ def evaluate_model(url: str) -> dict:
     if not model_info:
         raise ValueError("Could not retrieve model information")
 
-    ndjson_output = calculate_all_metrics(model_info, url)
+    ndjson_output = calculate_all_metrics(model_info, url, artifact_store)
     result = json.loads(ndjson_output)
 
     # Post-process name
@@ -252,18 +463,3 @@ def evaluate_model(url: str) -> dict:
     return convert_to_model_rating(result)
 
 
-def generate_artifact_id(artifact_type: str, url: str) -> str:
-    """Generate a deterministic, low-collision artifact ID.
-
-    Rationale:
-    - Previously used MD5 truncated to 12 chars, which increases collision risk.
-    - Use UUIDv5 (namespace-based) for deterministic IDs from (type, canonical URL).
-    - Hyphenated UUID string is allowed by our ID validator and avoids truncation risks.
-
-    Note: We canonicalize Hugging Face URLs to avoid duplicate IDs for equivalent URLs.
-    """
-    normalized_url = (
-        canonicalize_hf_url(url) if isinstance(url, str) and url.startswith("https://huggingface.co/") else url
-    )
-    name = f"{artifact_type}:{normalized_url}"
-    return str(uuid.uuid5(uuid.NAMESPACE_URL, name))
