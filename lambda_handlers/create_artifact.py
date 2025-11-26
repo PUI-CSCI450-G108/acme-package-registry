@@ -232,24 +232,38 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
 
         # Extract repo_id from HuggingFace URL
         if url.startswith("https://huggingface.co/"):
-            repo_id = url.replace("https://huggingface.co/", "").replace("https://huggingface.co/datasets/", "")
-            # Remove /tree/<branch> if present
-            if "/tree/" in repo_id:
-                repo_id = repo_id.split("/tree/")[0]
-            
-            # Determine repo type
-            repo_type = "dataset" if artifact_type == "dataset" else "model"
-            
-            # Download snapshot with authentication
-            local_dir = snapshot_download(
-                repo_id=repo_id,
-                repo_type=repo_type,
-                token=os.environ.get("HF_TOKEN")
-            )
-            
-            s3_prefix = f"artifacts/{artifact_id}"
-            manifest = upload_essential_hf_files_to_s3(local_dir, s3_prefix=s3_prefix)
-
+            try:
+                repo_id = url.replace("https://huggingface.co/", "").replace("https://huggingface.co/datasets/", "")
+                # Remove /tree/<branch> if present
+                if "/tree/" in repo_id:
+                    repo_id = repo_id.split("/tree/")[0]
+                
+                # Determine repo type
+                repo_type = "dataset" if artifact_type == "dataset" else "model"
+                
+                # Download snapshot with authentication
+                local_dir = snapshot_download(
+                    repo_id=repo_id,
+                    repo_type=repo_type,
+                    token=os.environ.get("HF_TOKEN")
+                )
+                
+                s3_prefix = f"artifacts/{artifact_id}"
+                manifest = upload_essential_hf_files_to_s3(local_dir, s3_prefix=s3_prefix)
+            except Exception as e:
+                latency = perf_counter() - start_time
+                log_event(
+                    "error",
+                    f"Failed to download/upload HF files for artifact {artifact_id}: {e}",
+                    event=event,
+                    context=context,
+                    model_id=artifact_id,
+                    latency=latency,
+                    status=500,
+                    error_code="hf_download_upload_error",
+                    exc_info=True,
+                )
+                return create_response(500, {"error": f"Failed to download/upload HF files: {str(e)}"})
         latency = perf_counter() - start_time
         log_event(
             "info",
