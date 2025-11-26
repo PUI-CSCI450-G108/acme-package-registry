@@ -3,15 +3,15 @@ Shared utility functions for Lambda handlers.
 
 Includes S3 operations, response formatting, and model evaluation helpers.
 """
-
 import os
 import json
 import logging
+import re
 import boto3
+import fnmatch
 from botocore.exceptions import ClientError
 from typing import Dict, Any, Optional, Iterable, List, Union
 from src.artifact_store import S3ArtifactStore
-
 # Setup environment
 os.environ.setdefault("GIT_LFS_SKIP_SMUDGE", "1")
 os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
@@ -46,8 +46,6 @@ def _configure_logger() -> logging.Logger:
 
 # Setup logging for CloudWatch
 logger = _configure_logger()
-
-
 LogLevel = Union[int, str]
 
 
@@ -142,12 +140,87 @@ def log_event(
 
 # S3 storage for artifacts
 BUCKET_NAME = os.getenv("ARTIFACTS_BUCKET")
+
+# Files that matter for running a HF model locally
+ESSENTIAL_PATTERNS = [
+    "config.json",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "special_tokens_map.json",
+    "generation_config.json",
+    "*.safetensors",
+    "pytorch_model*.bin",
+    "tf_model*.h5",
+    "flax_model*.msgpack",
+]
+
 s3_client = boto3.client("s3") if BUCKET_NAME else None
 
 MIN_NET_SCORE_THRESHOLD = float(os.getenv("MIN_NET_SCORE", "0.5"))
 
 
 # --- S3 Storage Helpers ---
+def is_essential_file(relative_path: str) -> bool:
+    """
+    Return True if the file should be kept and uploaded to S3.
+    Uses simple glob patterns against the file name.
+    """
+    filename = os.path.basename(relative_path)
+
+    for pattern in ESSENTIAL_PATTERNS:
+        if fnmatch.fnmatch(filename, pattern):
+            return True
+    return False
+
+def upload_essential_hf_files_to_s3(
+    local_dir: str,
+    s3_prefix: str,
+) -> dict:
+    """
+    Walk a local Hugging Face snapshot directory, select only essential files,
+    upload them to S3, and return a simple manifest.
+
+    Example s3_prefix: "models/bert-base-uncased/v1"
+    """
+    if not s3_client or not BUCKET_NAME:
+        log_event(
+            "warning",
+            "S3 not configured, upload skipped",
+            event=None,
+            context=None,
+        )
+        return {}
+    uploaded_files = []
+
+    for root, _, files in os.walk(local_dir):
+        for fname in files:
+            local_path = os.path.join(root, fname)
+            rel_path = os.path.relpath(local_path, local_dir)
+
+            if not is_essential_file(rel_path):
+                # Skip non essential files
+                continue
+
+            s3_key = f"{s3_prefix}/{rel_path}"
+
+            s3_client.upload_file(local_path, BUCKET_NAME, s3_key)
+            uploaded_files.append(rel_path)
+
+    manifest = {
+        "bucket": BUCKET_NAME,
+        "s3_prefix": s3_prefix,
+        "files": uploaded_files,
+    }
+
+    # Optional: store the manifest alongside the model
+    s3_client.put_object(
+        Bucket=BUCKET_NAME,
+        Key=f"{s3_prefix}/artifact_files_manifest.json",
+        Body=json.dumps(manifest, indent=2).encode("utf-8"),
+        ContentType="application/json",
+    )
+
+    return manifest
 
 def save_artifact_to_s3(artifact_id: str, artifact_data: dict) -> None:
     """Save artifact data to S3 as JSON."""
@@ -426,6 +499,7 @@ def convert_to_model_rating(ndjson_result: dict) -> dict:
 
 
 def evaluate_model(
+   
     url: str,
     *,
     artifact_store: Optional[S3ArtifactStore] = None,
@@ -461,5 +535,58 @@ def evaluate_model(
             result[k] = 1
 
     return convert_to_model_rating(result)
+
+
+# --- URL Validation Helpers ---
+
+def is_valid_artifact_url(url: str, artifact_type: str = "model") -> bool:
+    """
+    Validate that a URL is valid for the artifact type.
+
+    Supported URL patterns:
+    - model: https://huggingface.co/<org>/<model_name>[/tree/<branch>]
+    - dataset: https://huggingface.co/datasets/<org>/<dataset_name>[/tree/<branch>]
+    - code: https://github.com/<owner>/<repo>[/tree/<branch>]
+
+    Args:
+        url: The URL to validate
+        artifact_type: Type of artifact - "model", "dataset", or "code"
+
+    Returns:
+        True if valid, False otherwise
+    """
+    if not isinstance(url, str):
+        return False
+
+    url = url.strip()
+
+    if artifact_type == "model":
+        # Model pattern: https://huggingface.co/<org>/<name>[/tree/<branch>]
+        if not url.startswith("https://huggingface.co/"):
+            return False
+        remainder = url.replace("https://huggingface.co/", "")
+        # Must not start with "datasets/" and must have org/name format
+        if remainder.startswith("datasets/"):
+            return False
+        pattern = r"^[a-zA-Z0-9_-]+/[a-zA-Z0-9_.\-]+(/tree/[a-zA-Z0-9_.\-]+)?/?$"
+        return bool(re.match(pattern, remainder))
+
+    elif artifact_type == "dataset":
+        # Dataset pattern: https://huggingface.co/datasets/<org>/<name>[/tree/<branch>]
+        if not url.startswith("https://huggingface.co/datasets/"):
+            return False
+        remainder = url.replace("https://huggingface.co/datasets/", "")
+        pattern = r"^[a-zA-Z0-9_-]+/[a-zA-Z0-9_.\-]+(/tree/[a-zA-Z0-9_.\-]+)?/?$"
+        return bool(re.match(pattern, remainder))
+
+    elif artifact_type == "code":
+        # Code pattern: https://github.com/<owner>/<repo>[/tree/<branch>]
+        if not url.startswith("https://github.com/"):
+            return False
+        remainder = url.replace("https://github.com/", "")
+        pattern = r"^[a-zA-Z0-9_-]+/[a-zA-Z0-9_.\-]+(/tree/[a-zA-Z0-9_.\-]+)?/?$"
+        return bool(re.match(pattern, remainder))
+
+    return False
 
 
