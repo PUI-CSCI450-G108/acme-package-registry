@@ -209,7 +209,7 @@ Resources:
             Path: /health
             Method: GET
 
-  # Lambda Function for GET /health
+  # Lambda Function for GET /health/live
   HealthCheckLiveFunction:
     Type: AWS::Serverless::Function
     Properties:

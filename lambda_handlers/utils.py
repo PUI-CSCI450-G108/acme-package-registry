@@ -12,7 +12,15 @@ import fnmatch
 from botocore.exceptions import ClientError
 from typing import Dict, Any, Optional, Iterable, List, Union
 from src.artifact_store import S3ArtifactStore
+# Setup environment
+os.environ.setdefault("GIT_LFS_SKIP_SMUDGE", "1")
+os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
 
+if not os.getenv("HF_TOKEN") and os.getenv("HF_API_TOKEN"):
+    os.environ["HF_TOKEN"] = os.environ["HF_API_TOKEN"]
+
+if os.getenv("HF_TOKEN") and not os.getenv("HUGGINGFACE_HUB_TOKEN"):
+    os.environ["HUGGINGFACE_HUB_TOKEN"] = os.getenv("HF_TOKEN")
 
 def _configure_logger() -> logging.Logger:
     """Initialize a dedicated Lambda logger shipping to CloudWatch."""
@@ -493,9 +501,6 @@ def convert_to_model_rating(ndjson_result: dict) -> dict:
     return result
 
 
-# Import evaluation logic
-from src.metrics.helpers.pull_model import pull_model_info, canonicalize_hf_url
-from src.orchestrator import calculate_all_metrics
 def evaluate_model(
    
     url: str,

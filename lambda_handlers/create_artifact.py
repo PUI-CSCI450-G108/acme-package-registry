@@ -23,7 +23,6 @@ from lambda_handlers.utils import (
 )
 from src.artifact_utils import generate_artifact_id
 from src.artifact_store import S3ArtifactStore
-from src.artifact_utils import generate_artifact_id
 
 
 def handler(event: Dict[str, Any], context: Any) -> Dict:
