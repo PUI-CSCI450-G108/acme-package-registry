@@ -182,6 +182,14 @@ def upload_essential_hf_files_to_s3(
 
     Example s3_prefix: "models/bert-base-uncased/v1"
     """
+    if not s3_client or not BUCKET_NAME:
+        log_event(
+            "warning",
+            "S3 not configured, upload skipped",
+            event=None,
+            context=None,
+        )
+        return {}
     uploaded_files = []
 
     for root, _, files in os.walk(local_dir):
@@ -239,17 +247,6 @@ def save_artifact_to_s3(artifact_id: str, artifact_data: dict) -> None:
         context=None,
         model_id=artifact_id,
     )
-    #Implement download groomed model files to S3 bucket.
-
-    # Dict artifact_files
-    # groom(artifact_files)
-    # for file_name in artifact_files.items():
-    #   s3.put_object(
-    #                   Bucket=BUCKET_NAME,
-    #                   Key =key+"/download/"+file_name,
-    #                   Body=artifact_files[file_name]
-    #   )
-
 
 
 def load_artifact_from_s3(artifact_id: str) -> Optional[dict]:

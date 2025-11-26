@@ -230,8 +230,25 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
             status=201,
         )
 
-        local_dir = snapshot_download(repo_id="bert-base-uncased")
-        manifest = upload_essential_hf_files_to_s3(local_dir, s3_prefix="artifacts/")
+        # Extract repo_id from HuggingFace URL
+        if url.startswith("https://huggingface.co/"):
+            repo_id = url.replace("https://huggingface.co/", "").replace("https://huggingface.co/datasets/", "")
+            # Remove /tree/<branch> if present
+            if "/tree/" in repo_id:
+                repo_id = repo_id.split("/tree/")[0]
+            
+            # Determine repo type
+            repo_type = "dataset" if artifact_type == "dataset" else "model"
+            
+            # Download snapshot with authentication
+            local_dir = snapshot_download(
+                repo_id=repo_id,
+                repo_type=repo_type,
+                token=os.environ.get("HF_TOKEN")
+            )
+            
+            s3_prefix = f"artifacts/{artifact_id}"
+            manifest = upload_essential_hf_files_to_s3(local_dir, s3_prefix=s3_prefix)
 
         latency = perf_counter() - start_time
         log_event(
