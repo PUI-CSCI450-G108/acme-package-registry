@@ -230,8 +230,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
             status=201,
         )
 
-        # Extract repo_id from HuggingFace URL
-        if url.startswith("https://huggingface.co/"):
+        # Feature flag: Check if full model download is enabled
+        enable_full_download = os.environ.get("ENABLE_FULL_MODEL_DOWNLOAD", "false").lower() == "true"
+        
+        # Extract repo_id from HuggingFace URL and download if enabled
+        if enable_full_download and url.startswith("https://huggingface.co/"):
             try:
                 repo_id = url.replace("https://huggingface.co/", "").replace("https://huggingface.co/datasets/", "")
                 # Remove /tree/<branch> if present
@@ -264,16 +267,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
                     exc_info=True,
                 )
                 return create_response(500, {"error": f"Failed to download/upload HF files: {str(e)}"})
-        latency = perf_counter() - start_time
-        log_event(
-            "info",
-            f"Uploaded essential HF files for artifact {artifact_id}",
-            event=event,
-            context=context,
-            model_id=artifact_id,
-            latency=latency,
-            status=201,
-        )
+            latency = perf_counter() - start_time
+            log_event(
+                "info",
+                f"Uploaded essential HF files for artifact {artifact_id}",
+                event=event,
+                context=context,
+                model_id=artifact_id,
+                latency=latency,
+                status=201,
+            )
 
         # Return artifact envelope
         return create_response(201, {
