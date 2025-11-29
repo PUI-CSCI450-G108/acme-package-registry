@@ -88,6 +88,12 @@ function getHeaders() {
     return headers;
 }
 
+// Navigate to health dashboard
+function goToHealthDashboard() {
+    // Navigate to health-dashboard/index.html
+    window.location.href = 'health-dashboard/index.html';
+}
+
 // Log out by revoking the token on the API and clearing local storage.
 async function logout() {
     const baseUrl = getApiBaseUrl();
