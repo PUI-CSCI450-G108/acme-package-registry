@@ -407,7 +407,7 @@ Resources:
           Type: HttpApi
           Properties:
             ApiId: !Ref AcmeApiGateway
-            Path: /artifact/{artifact_type}/{artifact_id}
+            Path: /artifact/{artifact_type}/{id}
             Method: GET
   
 
