@@ -9,6 +9,7 @@ from time import perf_counter
 import logging
 import os
 from typing import Dict, Any
+from huggingface_hub import snapshot_download
 
 from lambda_handlers.utils import (
     create_response,
@@ -17,9 +18,11 @@ from lambda_handlers.utils import (
     save_artifact_to_s3,
     MIN_NET_SCORE_THRESHOLD,
     log_event,
+    is_valid_artifact_url,
+    upload_essential_hf_files_to_s3,
 )
-from src.artifact_store import S3ArtifactStore
 from src.artifact_utils import generate_artifact_id
+from src.artifact_store import S3ArtifactStore
 
 
 def handler(event: Dict[str, Any], context: Any) -> Dict:
@@ -111,6 +114,24 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
 
         # Extract optional name from request body
         provided_name = body.get('name', '').strip() if body.get('name') else None
+        # Validate URL format based on artifact type
+        if not is_valid_artifact_url(url, artifact_type):
+            latency = perf_counter() - start_time
+            error_msg = {
+                "model": "Invalid URL. Must be a valid HuggingFace model URL (e.g., https://huggingface.co/org/model).",
+                "dataset": "Invalid URL. Must be a valid HuggingFace dataset URL (e.g., https://huggingface.co/datasets/org/dataset).",
+                "code": "Invalid URL. Must be a valid GitHub repository URL (e.g., https://github.com/owner/repo)."
+            }.get(artifact_type, "Invalid URL.")
+            log_event(
+                "warning",
+                f"Invalid URL provided for {artifact_type}",
+                event=event,
+                context=context,
+                latency=latency,
+                status=400,
+                error_code="invalid_artifact_url",
+            )
+            return create_response(400, {"error": error_msg})
 
         # Generate artifact ID (deterministic UUID based on type+URL)
         artifact_id = generate_artifact_id(artifact_type, url)
@@ -189,7 +210,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
             "type": artifact_type
         }
 
-        # Store artifact in S3
+        # Store artifact data in S3
         artifact_data = {
             "url": url,
             "metadata": metadata,
@@ -201,13 +222,61 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
         latency = perf_counter() - start_time
         log_event(
             "info",
-            f"Registered artifact {artifact_id}: {name}",
+            f"Registered artifact Data {artifact_id}: {name}",
             event=event,
             context=context,
             model_id=artifact_id,
             latency=latency,
             status=201,
         )
+
+        # Feature flag: Check if full model download is enabled
+        enable_full_download = os.environ.get("ENABLE_FULL_MODEL_DOWNLOAD", "false").lower() == "true"
+        
+        # Extract repo_id from HuggingFace URL and download if enabled
+        if enable_full_download and url.startswith("https://huggingface.co/"):
+            try:
+                repo_id = url.replace("https://huggingface.co/", "").replace("https://huggingface.co/datasets/", "")
+                # Remove /tree/<branch> if present
+                if "/tree/" in repo_id:
+                    repo_id = repo_id.split("/tree/")[0]
+                
+                # Determine repo type
+                repo_type = "dataset" if artifact_type == "dataset" else "model"
+                
+                # Download snapshot with authentication
+                local_dir = snapshot_download(
+                    repo_id=repo_id,
+                    repo_type=repo_type,
+                    token=os.environ.get("HF_TOKEN")
+                )
+                
+                s3_prefix = f"artifacts/{artifact_id}"
+                manifest = upload_essential_hf_files_to_s3(local_dir, s3_prefix=s3_prefix)
+            except Exception as e:
+                latency = perf_counter() - start_time
+                log_event(
+                    "error",
+                    f"Failed to download/upload HF files for artifact {artifact_id}: {e}",
+                    event=event,
+                    context=context,
+                    model_id=artifact_id,
+                    latency=latency,
+                    status=500,
+                    error_code="hf_download_upload_error",
+                    exc_info=True,
+                )
+                return create_response(500, {"error": f"Failed to download/upload HF files: {str(e)}"})
+            latency = perf_counter() - start_time
+            log_event(
+                "info",
+                f"Uploaded essential HF files for artifact {artifact_id}",
+                event=event,
+                context=context,
+                model_id=artifact_id,
+                latency=latency,
+                status=201,
+            )
 
         # Return artifact envelope
         return create_response(201, {

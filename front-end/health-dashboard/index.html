@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>System Health Dashboard</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <div class="back-button-container">
+    <button onclick="goBack()" class="back-btn">← Back to Registry</button>
+  </div>
+  
+  <div class="health-card">
+    <div class="health-header">
+      <h2 class="health-title" id="service-name">Service</h2>
+      <span class="badge" id="status-badge">Loading…</span>
+    </div>
+
+    <div class="health-grid">
+      <div>
+        <div class="label">Status</div>
+        <div class="value" id="status-value">–</div>
+      </div>
+      <div>
+        <div class="label">Artifacts</div>
+        <div class="value" id="artifacts-count">–</div>
+      </div>
+      <div>
+        <div class="label">Window (minutes)</div>
+        <div class="value" id="window-minutes">–</div>
+      </div>
+      <div>
+        <div class="label">Window start</div>
+        <div class="value" id="window-start">–</div>
+      </div>
+      <div>
+        <div class="label">Window end</div>
+        <div class="value" id="window-end">–</div>
+      </div>
+      <div>
+        <div class="label">Reported at</div>
+        <div class="value" id="timestamp">–</div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div class="status-line">
+        <span class="dot" id="status-dot"></span>
+        <span id="status-text">Waiting for data…</span>
+      </div>
+      <div id="last-updated">Last refresh: –</div>
+    </div>
+
+    <div class="error" id="error-message" style="display: none;"></div>
+  </div>
+
+  <script>
+    function goBack() {
+      window.location.href = '../index.html';
+    }
+
+    const HEALTH_URL = "https://436cwsdtp3.execute-api.us-east-1.amazonaws.com/health";
+    const REFRESH_MS = 15000;
+
+    async function fetchHealth() {
+      const errorEl = document.getElementById("error-message");
+      errorEl.style.display = "none";
+      errorEl.textContent = "";
+
+      try {
+        const res = await fetch(HEALTH_URL, { cache: "no-store" });
+        if (!res.ok) throw new Error("HTTP " + res.status + " " + res.statusText);
+        const data = await res.json();
+        updateHealthCard(data);
+      } catch (err) {
+        console.error(err);
+        errorEl.textContent = "Error fetching health data: " + err.message;
+        errorEl.style.display = "block";
+        setUnhealthyVisuals("unknown");
+      } finally {
+        document.getElementById("last-updated").textContent =
+          "Last refresh: " + new Date().toLocaleTimeString();
+      }
+    }
+
+    function updateHealthCard(data) {
+      const status = (data.status || "").toLowerCase();
+
+      document.getElementById("service-name").textContent = data.service || "Unknown service";
+      document.getElementById("status-value").textContent = data.status || "unknown";
+      document.getElementById("artifacts-count").textContent = data.artifacts_count ?? "–";
+      document.getElementById("window-minutes").textContent = data.window_minutes ?? "–";
+      document.getElementById("window-start").textContent = data.window_start || "–";
+      document.getElementById("window-end").textContent = data.window_end || "–";
+      document.getElementById("timestamp").textContent = data.timestamp || "–";
+
+      if (status === "healthy") setHealthyVisuals();
+      else setUnhealthyVisuals(status || "unknown");
+    }
+
+    function setHealthyVisuals() {
+      const badge = document.getElementById("status-badge");
+      const dot = document.getElementById("status-dot");
+      const text = document.getElementById("status-text");
+
+      badge.textContent = "Healthy";
+      badge.classList.remove("badge-unhealthy");
+      badge.classList.add("badge-healthy");
+
+      dot.classList.remove("dot-unhealthy");
+      dot.classList.add("dot-healthy");
+
+      text.textContent = "System is operating normally";
+    }
+
+    function setUnhealthyVisuals(status) {
+      const badge = document.getElementById("status-badge");
+      const dot = document.getElementById("status-dot");
+      const text = document.getElementById("status-text");
+
+      badge.textContent = status === "unknown" ? "Unknown" : "Unhealthy";
+      badge.classList.remove("badge-healthy");
+      badge.classList.add("badge-unhealthy");
+
+      dot.classList.remove("dot-healthy");
+      dot.classList.add("dot-unhealthy");
+
+      text.textContent =
+        status === "unknown" ? "Unable to confirm system status" : "System requires attention";
+    }
+
+    fetchHealth();
+    setInterval(fetchHealth, REFRESH_MS);
+  </script>
+</body>
+</html>
