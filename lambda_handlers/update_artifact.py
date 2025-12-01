@@ -226,7 +226,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
             return create_response(404, {"error": "Artifact does not exist."})
 
         # Verify type immutability
-        stored_type = existing_artifact.get("metadata", {}).get("type") or existing_artifact.get("type")
+        metadata_type = existing_artifact.get("metadata", {}).get("type")
+        stored_type = metadata_type if metadata_type is not None else existing_artifact.get("type")
         if stored_type != artifact_type:
             latency = perf_counter() - start_time
             log_event(
