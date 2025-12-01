@@ -244,8 +244,22 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
             })
 
         # Preserve name from existing artifact
-        name = existing_artifact.get("metadata", {}).get("name", "unknown")
-
+        name = existing_artifact.get("metadata", {}).get("name")
+        if not name:
+            latency = perf_counter() - start_time
+            log_event(
+                "warning",
+                f"Artifact missing required 'name' field: {artifact_id}",
+                event=event,
+                context=context,
+                model_id=artifact_id,
+                latency=latency,
+                status=400,
+                error_code="missing_name",
+            )
+            return create_response(400, {
+                "error": "Artifact is missing required 'name' field."
+            })
         # Re-evaluate artifact (models only)
         if artifact_type == 'model':
             try:
