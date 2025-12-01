@@ -2,7 +2,7 @@
 openapi: 3.0.2
 info:
   title: ECE 461 - Fall 2025 - Project Phase 2
-  version: 3.4.4
+  version: 3.4.7
   description: |-
     API for ECE 461/Fall 2025/Project Phase 2: A Trustworthy Model Registry"
 
@@ -222,6 +222,9 @@ paths:
       responses:
         "200":
           description: Artifact is updated.
+        "202":
+          description: |-
+            Artifact ingest accepted but the rating pipeline deferred the evaluation. Use this when the package is stored but rating is performed asynchronously and the artifact is dropped silently if the rating later fails. Subsequent requests to `/rate` or any other endpoint with this artifact id should return 404 until a rating result exists.
         "400":
           description: "There is missing field(s) in the artifact_type or artifact_id or it is formed improperly, or is invalid."
         "403":
@@ -489,62 +492,6 @@ paths:
       operationId: CreateAuthToken
       summary: (NON-BASELINE)
       description: Create an access token.
-  /auth/register:
-    post:
-      summary: (NON-BASELINE)
-      description: Register a new user (admin only).
-      parameters:
-        - examples:
-            ExampleToken:
-              value: bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
-          name: X-Authorization
-          in: header
-          required: true
-          description: Admin authorization token
-          schema:
-            $ref: "#/components/schemas/AuthenticationToken"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RegisterUserRequest"
-      responses:
-        "201":
-          description: User created successfully.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RegisterUserResponse"
-        "400":
-          description: Invalid request payload.
-        "401":
-          description: Missing or invalid token.
-        "403":
-          description: Caller is not an admin.
-  /auth/logout:
-    post:
-      summary: (NON-BASELINE)
-      description: Log out the current token.
-      parameters:
-        - examples:
-            ExampleToken:
-              value: bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
-          name: X-Authorization
-          in: header
-          required: true
-          description: Authorization token to revoke
-          schema:
-            $ref: "#/components/schemas/AuthenticationToken"
-      responses:
-        "200":
-          description: Logout succeeded
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LogoutResponse"
-        "401":
-          description: Invalid or missing token.
   /artifact/byName/{name}:
     get:
       parameters:
@@ -709,13 +656,13 @@ paths:
                       - artifact_id: 3847247294
                         name: audience-classifier
                         source: config_json
-                      - artifact_id: 5738291045
-                        name: bookcorpus
-                        source: upstream_dataset
+                      - artifact_id: 9078563412
+                        name: bert-base-uncased
+                        source: config_json
                     edges:
-                      - from_node_artifact_id: 5738291045
+                      - from_node_artifact_id: 9078563412
                         to_node_artifact_id: 3847247294
-                        relationship: fine_tuning_dataset
+                        relationship: base_model
           description: Lineage graph extracted from structured metadata. (BASELINE)
         "400":
           description: "The lineage graph cannot be computed because the artifact metadata is missing or malformed."
@@ -1275,16 +1222,6 @@ components:
         "The spec permits you to use any token format you like. You could,\
         \ for example, look into JSON Web Tokens (\"JWT\", pronounced \"jots\"): https://jwt.io."
       type: string
-    UserPermissions:
-      description: Permission flags for registry operations.
-      type: object
-      properties:
-        can_upload:
-          type: boolean
-        can_search:
-          type: boolean
-        can_download:
-          type: boolean
     AuthenticationRequest:
       description: ""
       required:
@@ -1298,47 +1235,6 @@ components:
         secret:
           $ref: "#/components/schemas/UserAuthenticationInfo"
           description: ""
-    RegisterUserRequest:
-      description: Request payload for registering a new user.
-      required:
-        - user
-        - secret
-      type: object
-      properties:
-        user:
-          $ref: "#/components/schemas/User"
-        secret:
-          $ref: "#/components/schemas/UserAuthenticationInfo"
-        permissions:
-          $ref: "#/components/schemas/UserPermissions"
-    RegisterUserResponse:
-      description: Response payload after user registration.
-      required:
-        - username
-        - is_admin
-        - can_upload
-        - can_search
-        - can_download
-      type: object
-      properties:
-        username:
-          type: string
-        is_admin:
-          type: boolean
-        can_upload:
-          type: boolean
-        can_search:
-          type: boolean
-        can_download:
-          type: boolean
-    LogoutResponse:
-      description: Confirmation message for logout.
-      required:
-        - message
-      type: object
-      properties:
-        message:
-          type: string
     EnumerateOffset:
       description: Offset in pagination.
       type: string
