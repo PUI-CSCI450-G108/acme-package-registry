@@ -421,7 +421,57 @@ Resources:
             ApiId: !Ref AcmeApiGateway
             Path: /artifacts/{artifact_type}/{id}
             Method: GET
-  
+
+  # Lambda Function for PUT /artifacts/{artifact_type}/{id}
+  UpdateArtifactFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.update_artifact.handler
+      Description: Update existing artifact
+      FunctionName: acme-registry-update-artifact
+      Timeout: 300
+      MemorySize: 2048
+      Environment:
+        Variables:
+          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+          HF_TOKEN: !Ref HuggingFaceToken
+          MIN_NET_SCORE: "0.5"
+          GIT_LFS_SKIP_SMUDGE: "1"
+          HF_HUB_DISABLE_PROGRESS_BARS: "1"
+          HF_HOME: "/tmp/huggingface"
+          HUGGINGFACE_HUB_CACHE: "/tmp/huggingface/hub"
+          TRANSFORMERS_CACHE: "/tmp/huggingface/transformers"
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ArtifactsBucket
+        - S3WritePolicy:
+            BucketName: !Ref ArtifactsBucket
+      Events:
+        UpdateArtifactApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /artifacts/{artifact_type}/{id}
+            Method: PUT
+
+  # Lambda Function for GET /tracks
+  TracksFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.tracks.handler
+      Description: Get list of planned implementation tracks
+      FunctionName: acme-registry-tracks
+      Timeout: 10
+      MemorySize: 128
+      Events:
+        TracksApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /tracks
+            Method: GET
 
     # Lambda Function for GET /audit/package-confusion
   PackageConfusionAuditFunction:
