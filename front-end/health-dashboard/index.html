@@ -2,58 +2,61 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>System Health Dashboard</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 
 <body>
-  <div class="back-button-container">
-    <button onclick="goBack()" class="back-btn">← Back to Registry</button>
-  </div>
-  
-  <div class="health-card">
-    <div class="health-header">
-      <h2 class="health-title" id="service-name">Service</h2>
-      <span class="badge" id="status-badge">Loading…</span>
-    </div>
+  <nav class="back-button-container" aria-label="Navigation">
+    <button onclick="goBack()" class="back-btn" aria-label="Go back to main registry page">← Back to Registry</button>
+  </nav>
 
-    <div class="health-grid">
-      <div>
-        <div class="label">Status</div>
-        <div class="value" id="status-value">–</div>
-      </div>
-      <div>
-        <div class="label">Artifacts</div>
-        <div class="value" id="artifacts-count">–</div>
-      </div>
-      <div>
-        <div class="label">Window (minutes)</div>
-        <div class="value" id="window-minutes">–</div>
-      </div>
-      <div>
-        <div class="label">Window start</div>
-        <div class="value" id="window-start">–</div>
-      </div>
-      <div>
-        <div class="label">Window end</div>
-        <div class="value" id="window-end">–</div>
-      </div>
-      <div>
-        <div class="label">Reported at</div>
-        <div class="value" id="timestamp">–</div>
-      </div>
-    </div>
+  <main>
+    <article class="health-card" aria-labelledby="service-name">
+      <header class="health-header">
+        <h1 class="health-title" id="service-name">Service</h1>
+        <span class="badge" id="status-badge" role="status" aria-live="polite">Loading…</span>
+      </header>
 
-    <div class="footer">
-      <div class="status-line">
-        <span class="dot" id="status-dot"></span>
-        <span id="status-text">Waiting for data…</span>
-      </div>
-      <div id="last-updated">Last refresh: –</div>
-    </div>
+      <dl class="health-grid">
+        <div>
+          <dt class="label">Status</dt>
+          <dd class="value" id="status-value">–</dd>
+        </div>
+        <div>
+          <dt class="label">Artifacts</dt>
+          <dd class="value" id="artifacts-count">–</dd>
+        </div>
+        <div>
+          <dt class="label">Window (minutes)</dt>
+          <dd class="value" id="window-minutes">–</dd>
+        </div>
+        <div>
+          <dt class="label">Window start</dt>
+          <dd class="value" id="window-start">–</dd>
+        </div>
+        <div>
+          <dt class="label">Window end</dt>
+          <dd class="value" id="window-end">–</dd>
+        </div>
+        <div>
+          <dt class="label">Reported at</dt>
+          <dd class="value" id="timestamp">–</dd>
+        </div>
+      </dl>
 
-    <div class="error" id="error-message" style="display: none;"></div>
-  </div>
+      <footer class="footer">
+        <div class="status-line" role="status" aria-live="polite">
+          <span class="dot" id="status-dot" aria-hidden="true"></span>
+          <span id="status-text">Waiting for data…</span>
+        </div>
+        <div id="last-updated" role="status" aria-live="polite">Last refresh: –</div>
+      </footer>
+
+      <div class="error" id="error-message" style="display: none;" role="alert" aria-live="assertive"></div>
+    </article>
+  </main>
 
   <script>
     function goBack() {
