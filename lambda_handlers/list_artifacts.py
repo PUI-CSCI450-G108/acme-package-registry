@@ -36,10 +36,10 @@ def _matches_query(metadata: Dict[str, Any], query: Dict[str, Any]) -> bool:
         return False
 
     types_filter = query.get("types")
-    if types_filter is not None:
-        if not isinstance(types_filter, list) or not all(isinstance(t, str) for t in types_filter):
-            return False
-        if types_filter and metadata.get("type") not in types_filter:
+    # If types is provided and non-empty, filter by types
+    # If types is empty or not provided, match all types
+    if types_filter:  # Non-empty list
+        if metadata.get("type") not in types_filter:
             return False
 
     return True
@@ -156,21 +156,33 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     error_code="invalid_query_entry",
                 )
                 return create_response(400, {"error": "There is missing field(s) in the artifact_query or it is formed improperly, or is invalid."})
-            if "types" in query and (
-                not isinstance(query["types"], list)
-                or not all(isinstance(item, str) and item for item in query["types"])
-            ):
-                latency = perf_counter() - start_time
-                log_event(
-                    "warning",
-                    "Invalid artifact types filter",
-                    event=event,
-                    context=context,
-                    latency=latency,
-                    status=400,
-                    error_code="invalid_types_filter",
-                )
-                return create_response(400, {"error": "There is missing field(s) in the artifact_query or it is formed improperly, or is invalid."})
+            if "types" in query:
+                types_value = query["types"]
+                if not isinstance(types_value, list):
+                    latency = perf_counter() - start_time
+                    log_event(
+                        "warning",
+                        "Invalid artifact types filter - not a list",
+                        event=event,
+                        context=context,
+                        latency=latency,
+                        status=400,
+                        error_code="invalid_types_filter",
+                    )
+                    return create_response(400, {"error": "There is missing field(s) in the artifact_query or it is formed improperly, or is invalid."})
+                # Only validate contents if types list is non-empty
+                if types_value and not all(isinstance(item, str) and item for item in types_value):
+                    latency = perf_counter() - start_time
+                    log_event(
+                        "warning",
+                        "Invalid artifact types filter - invalid type values",
+                        event=event,
+                        context=context,
+                        latency=latency,
+                        status=400,
+                        error_code="invalid_types_filter",
+                    )
+                    return create_response(400, {"error": "There is missing field(s) in the artifact_query or it is formed improperly, or is invalid."})
 
         artifacts_map = list_all_artifacts_from_s3()
         matches = _collect_matches(artifacts_map.values(), queries)
