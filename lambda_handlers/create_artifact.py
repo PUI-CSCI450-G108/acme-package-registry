@@ -160,8 +160,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
 
                 rating = evaluate_model(url, artifact_store=artifact_store)
 
-                # Check if rating is acceptable
-                if rating.get("net_score", 0) < MIN_NET_SCORE_THRESHOLD:
+                # Check if rating is acceptable (if threshold is enabled)
+                threshold_enabled = os.environ.get('THRESHOLD_ENABLED', 'true').lower() == 'true'
+                if threshold_enabled and rating.get("net_score", 0) < MIN_NET_SCORE_THRESHOLD:
                     latency = perf_counter() - start_time
                     log_event(
                         "warning",
