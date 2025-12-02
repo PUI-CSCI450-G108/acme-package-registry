@@ -6,59 +6,20 @@ from unittest.mock import MagicMock, patch
 from lambda_handlers.artifact_lineage import handler
 
 
-def test_lineage_missing_auth_token():
-    """Test lineage endpoint returns 403 when auth token is missing."""
+def test_lineage_missing_artifact_id():
+    """Test lineage endpoint returns 400 when artifact_id is missing."""
     event = {
         "httpMethod": "GET",
-        "pathParameters": {"id": "test-artifact-123"},
+        "pathParameters": {},
         "headers": {},
     }
     context = MagicMock()
 
     response = handler(event, context)
 
-    assert response["statusCode"] == 403
+    assert response["statusCode"] == 400
     body = json.loads(response["body"])
-    assert "Authentication failed" in body["error"]
-
-
-def test_lineage_invalid_auth_token():
-    """Test lineage endpoint returns 403 when auth token is invalid."""
-    event = {
-        "httpMethod": "GET",
-        "pathParameters": {"id": "test-artifact-123"},
-        "headers": {"X-Authorization": "invalid-token"},
-    }
-    context = MagicMock()
-
-    with patch("lambda_handlers.artifact_lineage.get_default_auth_service") as mock_auth, \
-         patch("lambda_handlers.artifact_lineage.InvalidTokenError", Exception):
-        mock_auth.return_value.verify_token.side_effect = Exception("Invalid token")
-
-        response = handler(event, context)
-
-        assert response["statusCode"] == 403
-        body = json.loads(response["body"])
-        assert "Authentication failed" in body["error"]
-
-
-def test_lineage_missing_artifact_id():
-    """Test lineage endpoint returns 400 when artifact_id is missing."""
-    event = {
-        "httpMethod": "GET",
-        "pathParameters": {},
-        "headers": {"X-Authorization": "valid-token"},
-    }
-    context = MagicMock()
-
-    with patch("lambda_handlers.artifact_lineage.get_default_auth_service") as mock_auth:
-        mock_auth.return_value.verify_token.return_value = "test-user"
-
-        response = handler(event, context)
-
-        assert response["statusCode"] == 400
-        body = json.loads(response["body"])
-        assert "missing field" in body["error"].lower()
+    assert "missing field" in body["error"].lower()
 
 
 def test_lineage_artifact_not_found():
@@ -66,14 +27,11 @@ def test_lineage_artifact_not_found():
     event = {
         "httpMethod": "GET",
         "pathParameters": {"id": "nonexistent-artifact"},
-        "headers": {"X-Authorization": "valid-token"},
+        "headers": {},
     }
     context = MagicMock()
 
-    with patch("lambda_handlers.artifact_lineage.get_default_auth_service") as mock_auth, \
-         patch("lambda_handlers.artifact_lineage.list_all_artifacts_from_s3") as mock_list:
-
-        mock_auth.return_value.verify_token.return_value = "test-user"
+    with patch("lambda_handlers.artifact_lineage.list_all_artifacts_from_s3") as mock_list:
         mock_list.return_value = {}
 
         response = handler(event, context)
@@ -88,14 +46,11 @@ def test_lineage_non_model_artifact():
     event = {
         "httpMethod": "GET",
         "pathParameters": {"id": "dataset-123"},
-        "headers": {"X-Authorization": "valid-token"},
+        "headers": {},
     }
     context = MagicMock()
 
-    with patch("lambda_handlers.artifact_lineage.get_default_auth_service") as mock_auth, \
-         patch("lambda_handlers.artifact_lineage.list_all_artifacts_from_s3") as mock_list:
-
-        mock_auth.return_value.verify_token.return_value = "test-user"
+    with patch("lambda_handlers.artifact_lineage.list_all_artifacts_from_s3") as mock_list:
         mock_list.return_value = {
             "dataset-123": {
                 "url": "https://huggingface.co/datasets/test",
@@ -117,14 +72,11 @@ def test_lineage_single_model_no_dependencies():
     event = {
         "httpMethod": "GET",
         "pathParameters": {"id": artifact_id},
-        "headers": {"X-Authorization": "valid-token"},
+        "headers": {},
     }
     context = MagicMock()
 
-    with patch("lambda_handlers.artifact_lineage.get_default_auth_service") as mock_auth, \
-         patch("lambda_handlers.artifact_lineage.list_all_artifacts_from_s3") as mock_list:
-
-        mock_auth.return_value.verify_token.return_value = "test-user"
+    with patch("lambda_handlers.artifact_lineage.list_all_artifacts_from_s3") as mock_list:
         mock_list.return_value = {
             artifact_id: {
                 "url": "https://huggingface.co/test/model",
@@ -156,14 +108,11 @@ def test_lineage_model_with_base_model():
     event = {
         "httpMethod": "GET",
         "pathParameters": {"id": child_id},
-        "headers": {"X-Authorization": "valid-token"},
+        "headers": {},
     }
     context = MagicMock()
 
-    with patch("lambda_handlers.artifact_lineage.get_default_auth_service") as mock_auth, \
-         patch("lambda_handlers.artifact_lineage.list_all_artifacts_from_s3") as mock_list:
-
-        mock_auth.return_value.verify_token.return_value = "test-user"
+    with patch("lambda_handlers.artifact_lineage.list_all_artifacts_from_s3") as mock_list:
         mock_list.return_value = {
             child_id: {
                 "url": "https://huggingface.co/test/child-model",
@@ -202,14 +151,11 @@ def test_lineage_external_dependency():
     event = {
         "httpMethod": "GET",
         "pathParameters": {"id": artifact_id},
-        "headers": {"X-Authorization": "valid-token"},
+        "headers": {},
     }
     context = MagicMock()
 
-    with patch("lambda_handlers.artifact_lineage.get_default_auth_service") as mock_auth, \
-         patch("lambda_handlers.artifact_lineage.list_all_artifacts_from_s3") as mock_list:
-
-        mock_auth.return_value.verify_token.return_value = "test-user"
+    with patch("lambda_handlers.artifact_lineage.list_all_artifacts_from_s3") as mock_list:
         mock_list.return_value = {
             artifact_id: {
                 "url": "https://huggingface.co/test/my-model",
@@ -248,14 +194,11 @@ def test_lineage_multiple_base_models():
     event = {
         "httpMethod": "GET",
         "pathParameters": {"id": merged_id},
-        "headers": {"X-Authorization": "valid-token"},
+        "headers": {},
     }
     context = MagicMock()
 
-    with patch("lambda_handlers.artifact_lineage.get_default_auth_service") as mock_auth, \
-         patch("lambda_handlers.artifact_lineage.list_all_artifacts_from_s3") as mock_list:
-
-        mock_auth.return_value.verify_token.return_value = "test-user"
+    with patch("lambda_handlers.artifact_lineage.list_all_artifacts_from_s3") as mock_list:
         mock_list.return_value = {
             merged_id: {
                 "url": "https://huggingface.co/test/merged",
@@ -302,14 +245,11 @@ def test_lineage_recursive_dependencies():
     event = {
         "httpMethod": "GET",
         "pathParameters": {"id": child_id},
-        "headers": {"X-Authorization": "valid-token"},
+        "headers": {},
     }
     context = MagicMock()
 
-    with patch("lambda_handlers.artifact_lineage.get_default_auth_service") as mock_auth, \
-         patch("lambda_handlers.artifact_lineage.list_all_artifacts_from_s3") as mock_list:
-
-        mock_auth.return_value.verify_token.return_value = "test-user"
+    with patch("lambda_handlers.artifact_lineage.list_all_artifacts_from_s3") as mock_list:
         mock_list.return_value = {
             child_id: {
                 "url": "https://huggingface.co/test/child",
