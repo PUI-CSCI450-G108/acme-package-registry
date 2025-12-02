@@ -6,11 +6,9 @@ from typing import Any, Dict, List, Set
 
 from lambda_handlers.utils import (
     create_response,
-    get_header,
     list_all_artifacts_from_s3,
     log_event,
 )
-from src.auth import AuthError, InvalidTokenError, get_default_auth_service
 
 
 def _extract_base_models(artifact_data: Dict[str, Any]) -> List[str]:
@@ -194,7 +192,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     API Gateway Event Structure:
     - event['pathParameters']['id'] - artifact ID
-    - event['headers']['X-Authorization'] - Auth token (required)
     """
     start_time = perf_counter()
     artifact_id = None
@@ -218,49 +215,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 status=200,
             )
             return create_response(200, {})
-
-        # Authenticate
-        token = get_header(event, "X-Authorization")
-        if not token:
-            latency = perf_counter() - start_time
-            log_event(
-                "warning",
-                "Missing authentication token in artifact_lineage",
-                event=event,
-                context=context,
-                latency=latency,
-                status=403,
-                error_code="missing_auth_token",
-            )
-            return create_response(
-                403,
-                {"error": "Authentication failed due to invalid or missing AuthenticationToken."}
-            )
-
-        try:
-            auth_service = get_default_auth_service()
-            username = auth_service.verify_token(token)
-            log_event(
-                "debug",
-                f"User {username} authenticated for artifact_lineage",
-                event=event,
-                context=context,
-            )
-        except (AuthError, InvalidTokenError) as e:
-            latency = perf_counter() - start_time
-            log_event(
-                "warning",
-                f"Authentication failed in artifact_lineage: {e}",
-                event=event,
-                context=context,
-                latency=latency,
-                status=403,
-                error_code="auth_failed",
-            )
-            return create_response(
-                403,
-                {"error": "Authentication failed due to invalid or missing AuthenticationToken."}
-            )
 
         # Extract path parameters
         path_params = event.get("pathParameters", {})
