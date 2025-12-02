@@ -31,7 +31,8 @@ def test_lineage_invalid_auth_token():
     }
     context = MagicMock()
 
-    with patch("lambda_handlers.artifact_lineage.get_default_auth_service") as mock_auth:
+    with patch("lambda_handlers.artifact_lineage.get_default_auth_service") as mock_auth, \
+         patch("lambda_handlers.artifact_lineage.InvalidTokenError", Exception):
         mock_auth.return_value.verify_token.side_effect = Exception("Invalid token")
 
         response = handler(event, context)
