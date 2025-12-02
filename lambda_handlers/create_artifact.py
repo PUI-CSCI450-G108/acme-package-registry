@@ -114,8 +114,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
 
         # Extract optional name from request body
         provided_name = body.get('name', '').strip() if body.get('name') else None
-        # Validate URL format based on artifact type
-        if not is_valid_artifact_url(url, artifact_type):
+
+        # Validate URL format based on artifact type (if validation is enabled)
+        url_validation_enabled = os.environ.get('URL_VALIDATION_ENABLED', 'true').lower() == 'true'
+        if url_validation_enabled and not is_valid_artifact_url(url, artifact_type):
             latency = perf_counter() - start_time
             error_msg = {
                 "model": "Invalid URL. Must be a valid HuggingFace model URL (e.g., https://huggingface.co/org/model).",

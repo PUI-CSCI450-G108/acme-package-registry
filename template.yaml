@@ -156,6 +156,7 @@ Resources:
           ARTIFACTS_BUCKET: !Ref ArtifactsBucket
           ENABLE_FULL_MODEL_DOWNLOAD: "false" #TODO: Set to desired runtime value
           THRESHOLD_ENABLED: "false"
+          URL_VALIDATION_ENABLED: "false"
       Policies:
         - S3WritePolicy:
             BucketName: !Ref ArtifactsBucket
