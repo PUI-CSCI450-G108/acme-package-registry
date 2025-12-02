@@ -1,8 +1,10 @@
 """Lambda handler for GET /artifact/{artifact_type}/{id}."""
 
 import json
+import os
 from time import perf_counter
 from typing import Any, Dict
+import boto3
 
 from lambda_handlers.utils import (
     create_response,
@@ -113,6 +115,27 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             "metadata": artifact_data.get("metadata", {}),
             "data": {"url": artifact_data.get("url", "")},
         }
+
+        # Generate download_url if manifest exists
+        bucket_name = os.environ.get('ARTIFACTS_BUCKET')
+        if bucket_name:
+            try:
+                s3_client = boto3.client('s3')
+                manifest_key = f'artifacts/{artifact_id}/artifact_files_manifest.json'
+
+                # Check if manifest exists
+                s3_client.head_object(Bucket=bucket_name, Key=manifest_key)
+
+                # Generate presigned URL
+                download_url = s3_client.generate_presigned_url(
+                    'get_object',
+                    Params={'Bucket': bucket_name, 'Key': manifest_key},
+                    ExpiresIn=3600
+                )
+                response_data["data"]["download_url"] = download_url
+            except:
+                # Manifest doesn't exist, skip download_url
+                pass
 
         latency = perf_counter() - start_time
         log_event(
