@@ -10,7 +10,6 @@ import logging
 import os
 from typing import Dict, Any
 from huggingface_hub import snapshot_download
-import boto3
 
 from lambda_handlers.utils import (
     create_response,
@@ -240,12 +239,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
         # Extract repo_id from HuggingFace URL and download if enabled
         if enable_full_download and url.startswith("https://huggingface.co/"):
             try:
-                # Extract repo_id (check datasets URL first, then models)
-                if url.startswith("https://huggingface.co/datasets/"):
-                    repo_id = url.replace("https://huggingface.co/datasets/", "")
-                else:
-                    repo_id = url.replace("https://huggingface.co/", "")
-
+                repo_id = url.replace("https://huggingface.co/", "").replace("https://huggingface.co/datasets/", "")
                 # Remove /tree/<branch> if present
                 if "/tree/" in repo_id:
                     repo_id = repo_id.split("/tree/")[0]
@@ -287,38 +281,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
                 status=201,
             )
 
-        # Generate download_url as presigned S3 URL
-        download_url = None
-        if enable_full_download:
-            try:
-                bucket_name = os.environ.get('ARTIFACTS_BUCKET')
-                manifest_key = f'artifacts/{artifact_id}/artifact_files_manifest.json'
-                s3_client = boto3.client('s3')
-
-                # Generate 1-hour presigned URL for manifest
-                download_url = s3_client.generate_presigned_url(
-                    'get_object',
-                    Params={'Bucket': bucket_name, 'Key': manifest_key},
-                    ExpiresIn=3600
-                )
-            except Exception as e:
-                log_event(
-                    "warning",
-                    f"Failed to generate download_url for {artifact_id}: {e}",
-                    event=event,
-                    context=context,
-                    model_id=artifact_id,
-                )
-
-        # Return artifact envelope with download_url
-        response_data = {
+        # Return artifact envelope
+        return create_response(201, {
             "metadata": metadata,
             "data": {"url": url}
-        }
-        if download_url:
-            response_data["data"]["download_url"] = download_url
-
-        return create_response(201, response_data)
+        })
 
     except Exception as e:
         latency = perf_counter() - start_time
