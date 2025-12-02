@@ -1,0 +1,27 @@
+{
+  "name": "acme-package-registry",
+  "version": "1.0.0",
+  "description": "This project is a package management solution meant to replace dependency on tools like HuggingFace with an internally managed tool with low ramp-up time for engineers and lots of documentation",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "type": "module",
+  "scripts": {
+    "test:e2e": "playwright test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PUI-CSCI450-G108/acme-package-registry.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/PUI-CSCI450-G108/acme-package-registry/issues"
+  },
+  "homepage": "https://github.com/PUI-CSCI450-G108/acme-package-registry#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.57.0"
+  }
+}
