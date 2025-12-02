@@ -481,6 +481,30 @@ Resources:
             Path: /artifact/{artifact_type}/{id}/cost
             Method: GET
 
+  # Lambda Function for GET /artifact/model/{id}/lineage
+  ArtifactLineageFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.artifact_lineage.handler
+      Description: Get the lineage graph for a model artifact
+      FunctionName: acme-registry-artifact-lineage
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ArtifactsBucket
+      Events:
+        ArtifactLineageApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /artifact/model/{id}/lineage
+            Method: GET
+
   # Lambda Function for GET /tracks
   TracksFunction:
     Type: AWS::Serverless::Function
