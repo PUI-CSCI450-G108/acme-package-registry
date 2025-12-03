@@ -12,10 +12,20 @@ from src.metrics.helpers.pull_model import UrlType, pull_model_info
 
 
 def logistic_scale(x: float) -> float:
+    """Square root scaling for better device differentiation.
 
-    k = 12
-    n = 0.35
-    return 1.0 - (1.0 / (1.0 + math.exp(-k * (x - n))))
+    Returns value in [0, 1] where:
+    - x = 0 (tiny model, 0% of capacity) → score = 1.0 (perfect)
+    - x = 0.25 (25% of capacity) → score = 0.5
+    - x = 1 (model fills entire capacity) → score = 0.0 (won't run)
+    - x > 1 (model exceeds capacity) → score = 0.0 (definitely won't run)
+
+    Using sqrt creates more differentiation between devices for small models
+    while still providing clear penalties for large models.
+    """
+    if x >= 1.0:
+        return 0.0
+    return 1.0 - math.sqrt(x)
 
 
 def _bytes_from_safetensors_params(model_info: Any) -> int | None:
