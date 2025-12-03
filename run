@@ -78,8 +78,8 @@ def install():
 
     env = dict(os.environ, PIP_DISABLE_PIP_VERSION_CHECK="1")
     attempts = [
-        [sys.executable, "-m", "pip", "install", "--no-input", "-r", "requirements.txt"],
         [sys.executable, "-m", "pip", "install", "--no-input", "--user", "-r", "requirements.txt"],
+        [sys.executable, "-m", "pip", "install", "--no-input", "-r", "requirements.txt"],
     ]
 
     for cmd in attempts:
