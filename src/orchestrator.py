@@ -47,6 +47,9 @@ def calculate_all_metrics(model_info: Any, url: str, artifact_store=None) -> str
     """
     Orchestrates the parallel calculation of all metrics for a given model.
     """
+    # Start timing the entire evaluation pipeline
+    pipeline_start = time.perf_counter()
+
     metric_functions = {
         "ramp_up_time": compute_ramp_up_metric,
         "bus_factor": compute_bus_factor_metric,
@@ -90,8 +93,12 @@ def calculate_all_metrics(model_info: Any, url: str, artifact_store=None) -> str
                         "aws_server": 0.0,
                     }
 
-    net_score, net_score_latency = calculate_net_score(results)
+    net_score, _ = calculate_net_score(results)
     results["net_score"] = net_score
+
+    # Calculate total pipeline latency (all metrics + net score calculation)
+    pipeline_end = time.perf_counter()
+    net_score_latency = max(1, int((pipeline_end - pipeline_start) * 1000))
     latencies["net_score_latency"] = net_score_latency
 
     base_name = getattr(model_info, "id", "")
