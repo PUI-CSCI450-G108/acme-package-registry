@@ -37,10 +37,14 @@ def compute_perf_claims_metric(model_info: Any) -> float:
     strong_keywords = [
         "accuracy", "f1", "f1-score", "precision", "recall", "bleu", "rouge", "cer", "wer",
         "latency", "throughput", "ms", "fps", "samples/s", "glue", "squad", "mmlu", "hellaswag",
+        "perplexity", "loss", "auc", "mae", "rmse", "map"
     ]
     has_table = "|" in text and "---" in text  # markdown table heuristic
     numbers = re.findall(r"\b\d{1,3}(?:\.\d+)?%?\b", text)
-    strong_hit = has_table and any(k in text for k in strong_keywords) and len(numbers) >= 1
+
+    # Strong hit if: (table OR list with metrics) AND keywords AND numbers
+    has_structured_metrics = has_table or (any(k in text for k in strong_keywords) and len(numbers) >= 2)
+    strong_hit = has_structured_metrics and any(k in text for k in strong_keywords)
 
     # Medium signals: words like benchmark, evaluation, results, SOTA, without enough detail
     medium_keywords = ["benchmark", "evaluation", "results", "sota", "state-of-the-art", "compare", "comparison"]

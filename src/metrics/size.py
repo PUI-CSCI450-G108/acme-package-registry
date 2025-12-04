@@ -223,9 +223,9 @@ def compute_size_metric(model_info: Any) -> dict:
     if total_bytes is None:
         total_bytes = _bytes_from_dataset(model_info)
 
-    # If we still cannot determine size, return zeros
+    # If we still cannot determine size, return perfect scores (benefit of doubt)
     if total_bytes is None or total_bytes <= 0:
-        return {device: 0.0 for device in device_capacity_gb}
+        return {device: 1.0 for device in device_capacity_gb}
 
     total_gb = total_bytes / (1024**3)
 
