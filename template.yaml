@@ -179,7 +179,7 @@ Resources:
       Handler: lambda_handlers.rate_artifact.handler
       Description: Get ratings for a model artifact
       FunctionName: acme-registry-rate-artifact
-      ReservedConcurrentExecutions: 10
+      ReservedConcurrentExecutions: 100
       Environment:
         Variables:
           HF_TOKEN: !Ref HuggingFaceToken
