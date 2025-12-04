@@ -84,6 +84,8 @@ function getHeaders() {
     const token = getAuthToken();
     if (token) {
         headers['X-Authorization'] = token;
+
+        headers['Authorization'] = token;
     }
     return headers;
 }
