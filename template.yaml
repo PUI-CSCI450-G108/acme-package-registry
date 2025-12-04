@@ -471,8 +471,6 @@ Resources:
         Variables:
           ARTIFACTS_BUCKET: !Ref ArtifactsBucket
       Policies:
-        - S3ReadPolicy:
-            BucketName: !Ref ArtifactsBucket
         - S3CrudPolicy:
             BucketName: !Ref ArtifactsBucket
       Events:
