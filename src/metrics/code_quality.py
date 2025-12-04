@@ -69,16 +69,8 @@ def compute_code_quality_metric(model_info: Any) -> float:
     has_style_config = any(f in style_files for f in filenames)
 
     # Scoring logic (heuristic fallback)
-    # High score: well documented with code structure
-    if documented and has_code_files:
-        # Bonus for style config
-        return 1.0 if has_style_config or snake_case_present else 0.9
-    # Medium score: some documentation or code present
-    if documented:
-        return 0.75
-    if has_code_files:
-        return 0.6
-    # Low score: minimal code/docs but has README content
-    if readme:
-        return 0.4
+    if documented and (has_style_config or (has_code_files and snake_case_present)):
+        return 1.0
+    if documented or has_code_files:
+        return 0.5
     return 0.0

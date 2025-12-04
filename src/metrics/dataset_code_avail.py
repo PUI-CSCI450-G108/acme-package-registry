@@ -43,11 +43,8 @@ def compute_dataset_code_avail_metric(model_info: Any) -> float:
         and model_info.cardData.get("datasets")
     ):
         dataset_mentioned = True
-    # 2. Check README for more specific dataset references
-    elif any(keyword in readme_lower for keyword in [
-        "trained on", "training data", "dataset:", "datasets:",
-        "training set", "data source", "corpus"
-    ]):
+    # 2. Check README for keywords
+    elif "dataset" in readme_lower or "trained on" in readme_lower:
         dataset_mentioned = True
 
     if dataset_mentioned:
