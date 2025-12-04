@@ -40,21 +40,15 @@ def compute_dataset_quality_metric(model_info: Any) -> float:
     ):
         dataset_name = model_info.cardData.get("datasets")
 
-    # Fetch README to check for dataset mentions even if not in metadata
-    readme_content = _fetch_readme_content(model_info)
-    readme_lower = readme_content.lower() if readme_content else ""
-
-    # Check README for dataset references if not in metadata
-    dataset_keywords = ["trained on", "training data", "dataset:", "datasets:", "training set", "data source"]
-    readme_has_dataset = any(keyword in readme_lower for keyword in dataset_keywords)
-
-    if not dataset_name and not readme_has_dataset:
-        return 0.0  # If no dataset is linked in metadata or README, quality is 0
+    if not dataset_name:
+        return 0.0  # If no dataset is linked in metadata, quality is 0
 
     # Step 2: Analyze README for quality of documentation
+    readme_content = _fetch_readme_content(model_info)
     if not readme_content:
-        # Dataset mentioned but no README to verify quality
-        return 0.5 if dataset_name else 0.25
+        return 0.5  # Dataset is named, but we can't verify quality from README
+
+    readme_lower = readme_content.lower()
 
     # Keywords that indicate good documentation about the dataset
     quality_keywords = ["size", "samples", "split", "features", "diversity", "source"]

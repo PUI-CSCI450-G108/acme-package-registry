@@ -33,7 +33,7 @@ def compute_ramp_up_metric(model_info: Any) -> float:
     """
     readme_content = _fetch_readme_content(model_info)
     if not readme_content:
-        return 0.5
+        return 0.0
 
     word_count = len(readme_content.split())
 
