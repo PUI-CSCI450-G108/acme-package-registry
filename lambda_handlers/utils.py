@@ -468,12 +468,10 @@ def create_response(status_code: int, body: Any, headers: Optional[Dict] = None)
     if headers:
         default_headers.update(headers)
 
-    serialized_body = json.dumps(body)
-
     return {
         "statusCode": status_code,
         "headers": default_headers,
-        "body": serialized_body,
+        "body": json.dumps(body) if not isinstance(body, str) else body
     }
 
 
