@@ -57,6 +57,9 @@ Resources:
           - DELETE
           - OPTIONS
         MaxAge: 600
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 100
+        ThrottlingRateLimit: 50
 
   # S3 Bucket for artifact storage
   ArtifactsBucket:
@@ -176,12 +179,15 @@ Resources:
       Handler: lambda_handlers.rate_artifact.handler
       Description: Get ratings for a model artifact
       FunctionName: acme-registry-rate-artifact
+      ReservedConcurrentExecutions: 100
       Environment:
         Variables:
           HF_TOKEN: !Ref HuggingFaceToken
           ARTIFACTS_BUCKET: !Ref ArtifactsBucket
       Policies:
         - S3ReadPolicy:
+            BucketName: !Ref ArtifactsBucket
+        - S3WritePolicy:
             BucketName: !Ref ArtifactsBucket
       Events:
         RateArtifactApi:
