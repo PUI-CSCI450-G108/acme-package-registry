@@ -84,7 +84,7 @@ class AuthService:
     # ----------------------------------------------------------------------
     # REGISTER NEW USER — ADMIN ONLY
     # ----------------------------------------------------------------------
-    def register_user(
+def register_user(
         self,
         *,
         admin_token: str,
@@ -97,12 +97,27 @@ class AuthService:
     ):
         payload, admin_user = self.authenticate_token(admin_token)
 
-        # ✅ ONLY admins may register users — trust the JWT's is_admin claim
-        if not getattr(payload, "is_admin", False):
+        # Inspect both the token claim and the DB flag
+        token_is_admin = getattr(payload, "is_admin", None)
+        user_is_admin = getattr(admin_user, "is_admin", None)
+
+        # 🔍 This print WILL show in CloudWatch
+        print(
+            "DEBUG REGISTER ADMIN CHECK:",
+            "token_sub=", payload.sub,
+            "token_is_admin=", token_is_admin,
+            "user_username=", admin_user.username,
+            "user_is_admin=", user_is_admin,
+        )
+
+        # ONLY admins may register users: accept if EITHER source says admin
+        if not (bool(token_is_admin) or bool(user_is_admin)):
             logger.info(
-                "Token subject '%s' attempted admin-only registration (is_admin=%s)",
+                "Admin check failed for token subject '%s' "
+                "(token_is_admin=%s, user_is_admin=%s)",
                 payload.sub,
-                getattr(payload, "is_admin", None),
+                token_is_admin,
+                user_is_admin,
             )
             raise AuthError("Admin privileges required")
 
@@ -135,7 +150,7 @@ class AuthService:
     # ----------------------------------------------------------------------
     # LOGOUT
     # ----------------------------------------------------------------------
-    def logout(self, token: str) -> TokenPayload:
+def logout(self, token: str) -> TokenPayload:
         normalized = _normalize_token(token)
         payload = decode_token(normalized)
 
