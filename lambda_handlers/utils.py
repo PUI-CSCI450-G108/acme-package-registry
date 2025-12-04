@@ -489,6 +489,9 @@ def convert_to_model_rating(ndjson_result: dict) -> dict:
     """Convert orchestrator output to ModelRating format (ms->seconds)."""
     result = ndjson_result.copy()
 
+    # Remove net_score_version field (not part of ModelRating schema per spec)
+    result.pop("net_score_version", None)
+
     # Convert latencies from milliseconds to seconds
     for key in list(result.keys()):
         if key.endswith("_latency"):
