@@ -527,7 +527,8 @@ def extract_base_model_from_model_info(model_info: Any) -> Optional[Any]:
             return None
         else:
             return base_model
-    except Exception:
+    except Exception as e:
+        logging.debug(f"Failed to extract base_model: {e}")
         return None
 
 
