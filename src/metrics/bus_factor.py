@@ -70,18 +70,20 @@ def compute_bus_factor_metric(model_info: Any) -> float:
 
         if not counts_by_author:
             print("[bus_factor] no counts by author")
-            return 0.0
+            return 1.0
 
         gini = _gini_from_counts(list(counts_by_author.values()))
         if gini < 0.0:
             gini = 0.0
         if gini > 1.0:
             gini = 1.0
-        return round(gini, 4)
+        # Return 1 - Gini as per docstring (higher is better)
+        score = 1.0 - gini
+        return round(score, 4)
     except Exception:
         print("[bus_factor] exception", traceback.format_exc())
         # Safe fallback: avoid breaking overall scoring due to failures here
-        return 0.0
+        return 1.0
 
 if __name__ == "__main__":
     print(compute_bus_factor_metric(model_info={"id": "google/gemma-3-270m"}))
