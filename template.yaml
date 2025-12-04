@@ -457,6 +457,32 @@ Resources:
             Path: /artifacts/{artifact_type}/{id}
             Method: PUT
 
+  # Lambda Function for DELETE /artifacts/{artifact_type}/{id}
+  DeleteArtifactFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.delete_artifact.handler
+      Description: Delete artifact by ID
+      FunctionName: acme-registry-delete-artifact
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ArtifactsBucket
+        - S3CrudPolicy:
+            BucketName: !Ref ArtifactsBucket
+      Events:
+        DeleteArtifactApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /artifacts/{artifact_type}/{id}
+            Method: DELETE
+
   # Lambda Function for GET /artifact/{artifact_type}/{id}/cost
   ArtifactCostFunction:
     Type: AWS::Serverless::Function
