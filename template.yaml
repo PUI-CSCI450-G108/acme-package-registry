@@ -57,7 +57,10 @@ Resources:
           - DELETE
           - OPTIONS
         MaxAge: 600
-
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 1000
+        ThrottlingRateLimit: 500
+        
   # S3 Bucket for artifact storage
   ArtifactsBucket:
     Type: AWS::S3::Bucket
