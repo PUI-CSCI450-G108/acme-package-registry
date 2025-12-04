@@ -46,8 +46,28 @@ async function handleLogin(event) {
             throw new Error(errorMessage);
         }
 
-        // Lambda returns the token as a plain string (e.g., "bearer <jwt>").
-        const tokenText = responseText.trim();
+        // Normalize the token whether the backend wraps it in JSON or returns raw text.
+        let tokenText = responseText;
+        try {
+            const parsed = JSON.parse(responseText);
+            if (typeof parsed === 'string') {
+                tokenText = parsed;
+            } else if (parsed && typeof parsed.token === 'string') {
+                tokenText = parsed.token;
+            }
+        } catch {
+            // Fallback to raw text response when not valid JSON.
+        }
+
+        tokenText = tokenText.trim();
+        if (tokenText.startsWith('"') && tokenText.endsWith('"')) {
+            tokenText = tokenText.slice(1, -1);
+        }
+
+        if (!tokenText) {
+            throw new Error('Authentication token missing from response.');
+        }
+
         localStorage.setItem('authToken', tokenText);
 
         // Redirect to main application after successful authentication.
