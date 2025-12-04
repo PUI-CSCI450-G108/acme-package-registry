@@ -83,6 +83,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
     service = get_default_auth_service()
 
     try:
+        print("DEBUG: ADMIN TOKEN:", admin_token)
+        print("DEBUG: LOADED USERS:", service.user_repo.users if hasattr(service.user_repo, 'users') else 'NO USERS LOADED')    
         user = service.register_user(
             admin_token=admin_token,
             username=username,
