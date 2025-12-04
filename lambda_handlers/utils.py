@@ -501,15 +501,46 @@ def convert_to_model_rating(ndjson_result: dict) -> dict:
     return result
 
 
+def extract_base_model_from_model_info(model_info: Any) -> Optional[Any]:
+    """
+    Extract base_model field from HuggingFace model cardData.
+
+    Returns the base_model value (string, list, or None) for storage in artifact metadata.
+    This information is used by the lineage endpoint to build dependency graphs.
+
+    Args:
+        model_info: HuggingFace ModelInfo object
+
+    Returns:
+        base_model value (str, list, or None)
+    """
+    try:
+        card_data = getattr(model_info, "cardData", None) or {}
+        base_model = card_data.get("base_model")
+
+        # Return None for empty strings or empty lists
+        if base_model is None:
+            return None
+        elif isinstance(base_model, str) and not base_model.strip():
+            return None
+        elif isinstance(base_model, list) and len(base_model) == 0:
+            return None
+        else:
+            return base_model
+    except Exception as e:
+        logging.debug(f"Failed to extract base_model: {e}")
+        return None
+
+
 def evaluate_model(
-   
+
     url: str,
     *,
     artifact_store: Optional[S3ArtifactStore] = None,
     event: Optional[Dict[str, Any]] = None,
     context: Optional[Any] = None,
 ) -> dict:
-    """Evaluate a model and return rating dict."""
+    """Evaluate a model and return rating dict with base_model metadata."""
     # Lazy import evaluation logic to reduce cold start time for handlers that don't evaluate
     from src.metrics.helpers.pull_model import pull_model_info, canonicalize_hf_url
     from src.orchestrator import calculate_all_metrics
@@ -536,6 +567,11 @@ def evaluate_model(
     for k, v in list(result.items()):
         if k.endswith("_latency") and isinstance(v, int) and v <= 0:
             result[k] = 1
+
+    # Extract base_model for lineage tracking (stored separately from rating)
+    base_model = extract_base_model_from_model_info(model_info)
+    if base_model is not None:
+        result["base_model"] = base_model
 
     return convert_to_model_rating(result)
 
