@@ -97,14 +97,16 @@ class AuthService:
     ):
         payload, admin_user = self.authenticate_token(admin_token)
 
-        # ONLY admins may register users
-        if not admin_user.is_admin:
+        # ✅ ONLY admins may register users — trust the JWT's is_admin claim
+        if not getattr(payload, "is_admin", False):
             logger.info(
-                "User '%s' attempted admin-only registration", admin_user.username
+                "Token subject '%s' attempted admin-only registration (is_admin=%s)",
+                payload.sub,
+                getattr(payload, "is_admin", None),
             )
             raise AuthError("Admin privileges required")
 
-        # Admins always inherit full permissions
+        # Admins always inherit full permissions for newly created admins
         if is_admin:
             can_upload = True
             can_search = True
