@@ -7,17 +7,15 @@ from typing import Optional, Tuple
 from src.auth.exceptions import AuthError
 from src.auth.jwt_utils import TokenPayload, create_access_token, decode_token
 from src.auth.token_store import InMemoryTokenStore, TokenStore
-
 from src.user_management import (
+    InMemoryUserRepository,
+    UserRepository,
     create_user,
     get_user_by_username,
     initialize_default_admin,
     verify_password,
 )
-
-# IMPORTANT: import your NEW S3 repository
 from src.s3_user_repository import S3UserRepository
-
 
 logger = logging.getLogger(__name__)
 
@@ -31,24 +29,20 @@ def _normalize_token(raw_token: str) -> str:
 
 
 class AuthService:
-    """
-    Encapsulates user login, registration, and token revocation logic.
-    """
+    """Encapsulates user login, registration, and token revocation logic."""
 
-    def __init__(self, user_repository, token_store: TokenStore):
+    def __init__(self, user_repository: UserRepository, token_store: TokenStore):
         self.user_repository = user_repository
         self.token_store = token_store
 
-        # Create admin only if missing from S3
+        # Ensure the default admin exists in whatever backing store we're using
         initialize_default_admin(self.user_repository)
 
     # ----------------------------------------------------------------------
     # TOKEN AUTH
     # ----------------------------------------------------------------------
     def authenticate_token(self, token: str) -> Tuple[TokenPayload, object]:
-        """
-        Validates token, loads the user from the *actual repository*, not memory.
-        """
+        """Validates token, loads the user from the repository."""
         normalized = _normalize_token(token)
         payload = decode_token(normalized)
 
@@ -84,7 +78,7 @@ class AuthService:
     # ----------------------------------------------------------------------
     # REGISTER NEW USER — ADMIN ONLY
     # ----------------------------------------------------------------------
-def register_user(
+    def register_user(
         self,
         *,
         admin_token: str,
@@ -97,18 +91,9 @@ def register_user(
     ):
         payload, admin_user = self.authenticate_token(admin_token)
 
-        # Inspect both the token claim and the DB flag
+        # Look at both the token claim and the DB flag
         token_is_admin = getattr(payload, "is_admin", None)
         user_is_admin = getattr(admin_user, "is_admin", None)
-
-        # 🔍 This print WILL show in CloudWatch
-        print(
-            "DEBUG REGISTER ADMIN CHECK:",
-            "token_sub=", payload.sub,
-            "token_is_admin=", token_is_admin,
-            "user_username=", admin_user.username,
-            "user_is_admin=", user_is_admin,
-        )
 
         # ONLY admins may register users: accept if EITHER source says admin
         if not (bool(token_is_admin) or bool(user_is_admin)):
@@ -127,7 +112,7 @@ def register_user(
             can_search = True
             can_download = True
 
-        # Persist to S3 repository
+        # Persist to repository (S3 or in-memory)
         user = create_user(
             self.user_repository,
             username,
@@ -150,42 +135,43 @@ def register_user(
     # ----------------------------------------------------------------------
     # LOGOUT
     # ----------------------------------------------------------------------
-def logout(self, token: str) -> TokenPayload:
+    def logout(self, token: str) -> TokenPayload:
         normalized = _normalize_token(token)
         payload = decode_token(normalized)
 
         self.token_store.revoke_token(payload.jti)
-        logger.info(
-            "Revoked token %s for user '%s'", payload.jti, payload.sub
-        )
-
+        logger.info("Revoked token %s for user '%s'", payload.jti, payload.sub)
         return payload
 
 
 # ----------------------------------------------------------------------
 # DEFAULT FACTORY FUNCTION
 # ----------------------------------------------------------------------
-_default_user_repository: Optional[S3UserRepository] = None
+_default_user_repository: Optional[UserRepository] = None
 _default_token_store: Optional[TokenStore] = None
 _default_auth_service: Optional[AuthService] = None
 
 
 def get_default_auth_service() -> AuthService:
     """
-    Create a SINGLE global AuthService instance per Lambda container.
-    Now uses S3UserRepository, not InMemory.
+    Create a SINGLE global AuthService instance per process.
+
+    - In Lambda with USER_DB_BUCKET/USER_DB_KEY set => uses S3UserRepository
+    - In tests/local where those env vars are absent => uses InMemoryUserRepository
     """
     global _default_auth_service, _default_user_repository, _default_token_store
 
     if _default_auth_service is None:
-        bucket = os.environ["USER_DB_BUCKET"]
-        key = os.environ["USER_DB_KEY"]
+        bucket = os.environ.get("USER_DB_BUCKET")
+        key = os.environ.get("USER_DB_KEY")
 
-        _default_user_repository = S3UserRepository(bucket=bucket, key=key)
+        if bucket and key:
+            repo: UserRepository = S3UserRepository(bucket=bucket, key=key)
+        else:
+            repo = InMemoryUserRepository()
+
+        _default_user_repository = repo
         _default_token_store = InMemoryTokenStore()
-
-        _default_auth_service = AuthService(
-            _default_user_repository, _default_token_store
-        )
+        _default_auth_service = AuthService(_default_user_repository, _default_token_store)
 
     return _default_auth_service
