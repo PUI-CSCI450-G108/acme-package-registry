@@ -14,7 +14,6 @@ from src.metrics.helpers.pull_model import UrlType, pull_model_info
 
 # Configure logger for size metric
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 
 def _bytes_from_safetensors_params(model_info: Any) -> int | None:
