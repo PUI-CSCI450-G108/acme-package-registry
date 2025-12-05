@@ -84,7 +84,7 @@ class AuthService:
     # ----------------------------------------------------------------------
     # REGISTER NEW USER — ADMIN ONLY
     # ----------------------------------------------------------------------
-    def register_user(
+def register_user(
         self,
         *,
         admin_token: str,
@@ -97,14 +97,31 @@ class AuthService:
     ):
         payload, admin_user = self.authenticate_token(admin_token)
 
-        # ONLY admins may register users
-        if not admin_user.is_admin:
+        # Inspect both the token claim and the DB flag
+        token_is_admin = getattr(payload, "is_admin", None)
+        user_is_admin = getattr(admin_user, "is_admin", None)
+
+        # 🔍 This print WILL show in CloudWatch
+        print(
+            "DEBUG REGISTER ADMIN CHECK:",
+            "token_sub=", payload.sub,
+            "token_is_admin=", token_is_admin,
+            "user_username=", admin_user.username,
+            "user_is_admin=", user_is_admin,
+        )
+
+        # ONLY admins may register users: accept if EITHER source says admin
+        if not (bool(token_is_admin) or bool(user_is_admin)):
             logger.info(
-                "User '%s' attempted admin-only registration", admin_user.username
+                "Admin check failed for token subject '%s' "
+                "(token_is_admin=%s, user_is_admin=%s)",
+                payload.sub,
+                token_is_admin,
+                user_is_admin,
             )
             raise AuthError("Admin privileges required")
 
-        # Admins always inherit full permissions
+        # Admins always inherit full permissions for newly created admins
         if is_admin:
             can_upload = True
             can_search = True
@@ -133,7 +150,7 @@ class AuthService:
     # ----------------------------------------------------------------------
     # LOGOUT
     # ----------------------------------------------------------------------
-    def logout(self, token: str) -> TokenPayload:
+def logout(self, token: str) -> TokenPayload:
         normalized = _normalize_token(token)
         payload = decode_token(normalized)
 
