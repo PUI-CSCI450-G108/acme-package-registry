@@ -91,18 +91,22 @@ class AuthService:
     ):
         payload, admin_user = self.authenticate_token(admin_token)
 
-        # Look at both the token claim and the DB flag
-        token_is_admin = getattr(payload, "is_admin", None)
-        user_is_admin = getattr(admin_user, "is_admin", None)
+        token_is_admin = bool(getattr(payload, "is_admin", False))
+
+        # Only trust the repository flag for the in-memory repository to avoid
+        # relying on remote (e.g., S3-backed) data for admin privilege checks.
+        repo_is_admin = isinstance(self.user_repository, InMemoryUserRepository) and bool(
+            getattr(admin_user, "is_admin", False)
+        )
 
         # ONLY admins may register users: accept if EITHER source says admin
-        if not (bool(token_is_admin) or bool(user_is_admin)):
+        if not (token_is_admin or repo_is_admin):
             logger.info(
                 "Admin check failed for token subject '%s' "
-                "(token_is_admin=%s, user_is_admin=%s)",
+                "(token_is_admin=%s, repo_is_admin=%s)",
                 payload.sub,
                 token_is_admin,
-                user_is_admin,
+                repo_is_admin,
             )
             raise AuthError("Admin privileges required")
 
