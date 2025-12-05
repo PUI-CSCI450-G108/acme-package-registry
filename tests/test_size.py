@@ -9,7 +9,6 @@ from src.metrics.size import (
     _bytes_from_dataset,
     _bytes_from_space,
     compute_size_metric,
-    logistic_scale,
 )
 
 
@@ -112,7 +111,7 @@ def test_compute_size_metric_returns_zeros_when_unknown():
     assert all(v == 0.0 for v in scores.values())
 
 
-def test_compute_size_metric_for_dataset_files_metadata_uses_logistic_scale():
+def test_compute_size_metric_for_dataset_files_metadata_uses_linear_scale():
     # Construct ~4 GiB total to get non-trivial scores
     total_bytes = 4 * (1024 ** 3)
     info = types.SimpleNamespace(files=[{"size": total_bytes}], siblings=None)
@@ -127,7 +126,7 @@ def test_compute_size_metric_for_dataset_files_metadata_uses_logistic_scale():
     total_gb = total_bytes / (1024 ** 3)
 
     expected = {
-        device: round(logistic_scale(total_gb / capacity), 4)
+        device: round(max(0.0, 1.0 - (total_gb / capacity)), 4)
         for device, capacity in device_capacity_gb.items()
     }
     assert scores == expected

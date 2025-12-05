@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 import os
 from typing import Any, Dict
 
@@ -9,13 +8,6 @@ from typing import Any, Dict
 from huggingface_hub import hf_hub_download
 
 from src.metrics.helpers.pull_model import UrlType, pull_model_info
-
-
-def logistic_scale(x: float) -> float:
-
-    k = 12
-    n = 0.35
-    return 1.0 - (1.0 / (1.0 + math.exp(-k * (x - n))))
 
 
 def _bytes_from_safetensors_params(model_info: Any) -> int | None:
@@ -203,15 +195,19 @@ def compute_size_metric(model_info: Any) -> dict:
     if getattr(model_info, "runtime", None) is not None:
         total_bytes = _bytes_from_space(model_info)
 
-    # Models: prefer parameter-based estimate; fallback to files
-    if total_bytes is None and getattr(model_info, "safetensors", None) is not None:
-        total_bytes = _bytes_from_safetensors_params(model_info)
+    # Models: try safetensors parameters first, then repo files, then dataset
+    if total_bytes is None:
+        # Try safetensors parameter-based estimate if available
+        if getattr(model_info, "safetensors", None) is not None:
+            total_bytes = _bytes_from_safetensors_params(model_info)
+
+        # Always try repo files if we haven't found a size yet
         if total_bytes is None:
             total_bytes = _bytes_from_repo_files(model_info)
 
-    # Datasets: prefer files metadata; fallback to siblings
-    if total_bytes is None:
-        total_bytes = _bytes_from_dataset(model_info)
+        # Fallback to dataset detection
+        if total_bytes is None:
+            total_bytes = _bytes_from_dataset(model_info)
 
     # If we still cannot determine size, return zeros
     if total_bytes is None or total_bytes <= 0:
@@ -222,8 +218,8 @@ def compute_size_metric(model_info: Any) -> dict:
     # Score = max(0, 1 - (size / capacity)) per device
     scores: Dict[str, float] = {}
     for device, capacity_gb in device_capacity_gb.items():
-        raw_score = logistic_scale(total_gb / capacity_gb)
-        scores[device] = round(raw_score if raw_score > 0 else 0.0, 4)
+        raw_score = 1.0 - (total_gb / capacity_gb)
+        scores[device] = round(max(0.0, raw_score), 4)
 
     return scores
 
