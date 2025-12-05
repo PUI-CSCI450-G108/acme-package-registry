@@ -70,14 +70,15 @@ def _download_file_with_retry(model_id: str, filename: str, revision: str, max_r
                 logger.debug(f"  ✓ {filename}: {file_size} bytes")
             return (filename, file_size, True)
         except Exception as e:
+            logger.exception(f"Exception occurred while downloading {filename} (attempt {attempt + 1}/{max_retries})")
             if attempt < max_retries - 1:
                 # Exponential backoff: 1s, 2s, 4s
                 wait_time = 2 ** attempt
-                logger.warning(f"  Retry {attempt + 1}/{max_retries} for {filename} after error: {e}")
+                logger.warning(f"  Retry {attempt + 1}/{max_retries} for {filename} after error: {type(e).__name__}: {e}")
                 logger.debug(f"    Waiting {wait_time}s before retry...")
                 time.sleep(wait_time)
             else:
-                logger.error(f"  ✗ {filename}: All {max_retries} attempts failed - {e}")
+                logger.error(f"  ✗ {filename}: All {max_retries} attempts failed - {type(e).__name__}: {e}")
                 return (filename, 0, False)
 
     return (filename, 0, False)
