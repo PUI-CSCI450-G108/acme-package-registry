@@ -48,7 +48,7 @@ def _bytes_from_repo_files(model_info: Any) -> int | None:
     total_bytes = 0
     any_found = False
 
-    for sibling in siblings:
+    for sibling in siblings or []:
         rfilename = getattr(sibling, "rfilename", "")
         if not isinstance(rfilename, str):
             continue
