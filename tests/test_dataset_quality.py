@@ -5,6 +5,13 @@ import pytest
 from src.metrics.dataset_quality import compute_dataset_quality_metric
 
 
+# Mock LLM to be unavailable so tests use heuristic fallback
+@pytest.fixture(autouse=True)
+def mock_llm_unavailable():
+    with patch("src.LLM_endpoint.is_llm_available", return_value=False):
+        yield
+
+
 class MockModelInfo:
     def __init__(self, repo_id, cardData=None):
         self.id = repo_id

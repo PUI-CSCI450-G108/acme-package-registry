@@ -60,6 +60,21 @@ def _build_prompt(task: str, readme: str, context: dict) -> t.List[dict]:
             "Output ONLY a JSON with keys: score (0, 0.5, 1) and reason. Criteria: 1 if benchmarks/evaluation results "
             "are present and clear (tables/metrics); 0.5 if vague or partial claims; 0 if none."
         )
+    elif task == "dataset_quality":
+        system = (
+            "You are a dataset documentation reviewer. Assess the quality of dataset documentation in the README. "
+            "Output ONLY a JSON with keys: score (0, 0.5, 1) and reason. Criteria: "
+            "1 if dataset is clearly named AND properties are documented (size/samples/split/features/source); "
+            "0.5 if dataset is named but lacks detail; 0 if no dataset documentation."
+        )
+    elif task == "dataset_code_avail":
+        system = (
+            "You are a repository content auditor. Assess dataset and code availability. "
+            "Output ONLY a JSON with keys: score (0, 0.5, 1) and reason. Scoring: "
+            "+0.5 if training dataset is clearly mentioned (in README or metadata), "
+            "+0.5 if example code/scripts are available (in file list or README code blocks). "
+            "Total score is sum of both (0, 0.5, or 1.0)."
+        )
     elif task == "ramp_up":
         system = (
             "You are a technical documentation reviewer assessing ease of onboarding for machine learning models. "

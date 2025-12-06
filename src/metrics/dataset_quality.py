@@ -48,6 +48,21 @@ def compute_dataset_quality_metric(model_info: Any) -> float:
     if not readme_content:
         return 0.5  # Dataset is named, but we can't verify quality from README
 
+    # Try LLM-based assessment first if available
+    try:
+        from src.LLM_endpoint import score_with_llm, is_llm_available  # type: ignore
+        if is_llm_available():
+            context = {
+                "dataset_name": dataset_name,
+                "card_data": getattr(model_info, "cardData", None) or {},
+            }
+            llm_score = score_with_llm("dataset_quality", readme_content, context)
+            if llm_score is not None:
+                return float(llm_score)
+    except Exception as e:
+        logging.debug(f"dataset_quality: LLM scoring unavailable: {e}")
+
+    # Fallback to heuristic
     readme_lower = readme_content.lower()
 
     # Keywords that indicate good documentation about the dataset
