@@ -66,7 +66,7 @@ def compute_code_quality_metric(model_info: Any) -> float:
     snake_case_present = any(f.endswith(".py") and ("_" in f) for f in filenames)
 
     # Style/config presence
-    style_files = {"pyproject.toml", "setup.cfg", ".flake8", ".editorconfig", ".isort.cfg", "tox.ini", "requirements.txt", "setup.py"}
+    style_files = {"pyproject.toml", "setup.cfg", ".flake8", ".editorconfig", ".isort.cfg", "tox.ini"}
     has_style_config = any(f in style_files for f in filenames)
 
     # More lenient scoring logic (heuristic fallback)
