@@ -188,6 +188,21 @@ def _handle_post_by_regex(
         if compiled.search(searchable_text):
             matching_artifacts.append(metadata)
 
+    # Return 404 if no matches found (per OpenAPI spec line 763)
+    if not matching_artifacts:
+        latency = perf_counter() - start_time
+        log_event(
+            "warning",
+            f"No artifacts found matching regex pattern: {regex_pattern!r}",
+            event=event,
+            context=context,
+            model_id=regex_pattern,
+            latency=latency,
+            status=404,
+            error_code="artifact_not_found",
+        )
+        return create_response(404, {"error": "No artifact found under this regex."})
+
     latency = perf_counter() - start_time
     log_event(
         "info",
@@ -199,7 +214,6 @@ def _handle_post_by_regex(
         latency=latency,
         status=200,
     )
-    # Empty list is fine: "subset of directory" may be size 0.
     return create_response(200, matching_artifacts)
 
 
@@ -214,7 +228,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
     - event['body']        - JSON body: {"regex": "..."}
     """
     start_time = perf_counter()
-    identifier_for_logs: Optional[str] = None
 
     try:
         log_event(
@@ -263,7 +276,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
             f"Unexpected error in get_artifacts_by_regex: {e}",
             event=event,
             context=context,
-            model_id=identifier_for_logs,
             latency=latency,
             status=500,
             error_code="unexpected_error",
