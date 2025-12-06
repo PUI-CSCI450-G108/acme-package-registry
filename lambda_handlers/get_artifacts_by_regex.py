@@ -79,7 +79,6 @@ def _handle_get_by_name(event: Dict[str, Any],
 
     Returns metadata for all artifacts matching the provided name (case-insensitive).
     """
-    artifact_name = None
     name = event.get('pathParameters', {}).get('name')
     artifact_name = name
 
