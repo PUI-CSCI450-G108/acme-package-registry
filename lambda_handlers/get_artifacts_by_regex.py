@@ -14,9 +14,11 @@ from typing import Any, Dict, Optional, Tuple
 
 from lambda_handlers.utils import (
     create_response,
+    get_header,
     list_all_artifacts_from_s3,
     log_event,
 )
+from src.auth import AuthError, InvalidTokenError, get_default_auth_service
 
 # Configure logging for Lambda (outputs to CloudWatch Logs)
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -104,6 +106,66 @@ def _handle_post_by_regex(
     Searches over artifact names and model cards.
     Results are a subset of list_all_artifacts_from_s3().
     """
+    # Authenticate and authorize
+    token = get_header(event, "X-Authorization")
+    if not token:
+        latency = perf_counter() - start_time
+        log_event(
+            "warning",
+            "Search attempted without authorization token",
+            event=event,
+            context=context,
+            latency=latency,
+            status=403,
+            error_code="missing_token",
+        )
+        return create_response(
+            403,
+            {
+                "error": "Authentication failed due to invalid or missing AuthenticationToken."
+            },
+        )
+
+    try:
+        service = get_default_auth_service()
+        payload, user = service.authenticate_token(token)
+
+        # Check upload permission
+        if not user.can_upload:
+            latency = perf_counter() - start_time
+            log_event(
+                "warning",
+                f"User '{user.username}' attempted search without can_upload permission",
+                event=event,
+                context=context,
+                latency=latency,
+                status=403,
+                error_code="insufficient_permissions",
+            )
+            return create_response(
+                403,
+                {
+                    "error": "Authentication failed due to invalid or missing AuthenticationToken."
+                },
+            )
+    except (AuthError, InvalidTokenError) as e:
+        latency = perf_counter() - start_time
+        log_event(
+            "warning",
+            f"Authentication failed in get_artifacts_by_regex: {e}",
+            event=event,
+            context=context,
+            latency=latency,
+            status=403,
+            error_code="auth_failed",
+        )
+        return create_response(
+            403,
+            {
+                "error": "Authentication failed due to invalid or missing AuthenticationToken."
+            },
+        )
+
     # Parse JSON body
     raw_body = event.get("body") or ""
     try:
