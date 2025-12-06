@@ -263,15 +263,11 @@ def _handle_post_by_regex(event: Dict[str, Any],
 
 def handler(event: Dict[str, Any], context: Any) -> Dict:
     """
-    Combined Lambda handler:
+    Lambda handler for POST /artifact/byRegEx (regex search).
 
-    - GET  /artifact/byName/{name}  -> exact name search
-    - POST /artifact/byRegEx        -> regex search
-
-    API Gateway Event Structure (typical):
-    - event['httpMethod']              - "GET" or "POST"
-    - event['pathParameters']['name']  - For GET /artifact/byName/{name}
-    - event['body']                    - For POST /artifact/byRegEx: {"regex": "..."}
+    API Gateway Event Structure:
+    - event['httpMethod']  - "POST"
+    - event['body']        - JSON: {"regex": "..."}
     """
     start_time = perf_counter()
     identifier_for_logs: Optional[str] = None
