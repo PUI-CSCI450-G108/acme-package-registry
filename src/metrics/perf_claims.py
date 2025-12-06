@@ -80,7 +80,7 @@ def _tier2_llm_analysis(readme: str, model_info: Any) -> float:
     text = readme.lower()
 
     # Check for actual numbers (metrics need numbers!)
-    numbers = re.findall(r"\b\d{1,3}(?:\.\d+)?%?\b", readme)
+    numbers = re.findall(r"\b\d+(?:\.\d+)?%?\b", readme)
 
     # Strong metric keywords
     strong_keywords = ["accuracy", "f1", "precision", "recall", "bleu", "rouge", "loss", "perplexity"]
