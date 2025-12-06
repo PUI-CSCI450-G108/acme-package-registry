@@ -603,9 +603,6 @@ Resources:
             ApiId: !Ref AcmeApiGateway
             Path: /artifact/byRegEx
             Method: POST
-  
-  
-
 Outputs:
   ApiGatewayUrl:
     Description: "API Gateway endpoint URL"
