@@ -47,9 +47,10 @@ def compute_code_quality_metric(model_info: Any) -> float:
         logging.debug(f"code_quality: LLM scoring unavailable: {e}")
     readme_lower = readme.lower()
 
-    # Documentation signals
+    # Documentation signals - be more lenient
     doc_keywords = [
         "usage", "installation", "how to use", "getting started", "example", "documentation",
+        "import", "model", "inference", "training", "fine-tune", "quickstart",
     ]
     documented = any(k in readme_lower for k in doc_keywords)
 
@@ -65,12 +66,14 @@ def compute_code_quality_metric(model_info: Any) -> float:
     snake_case_present = any(f.endswith(".py") and ("_" in f) for f in filenames)
 
     # Style/config presence
-    style_files = {"pyproject.toml", "setup.cfg", ".flake8", ".editorconfig", ".isort.cfg", "tox.ini"}
+    style_files = {"pyproject.toml", "setup.cfg", ".flake8", ".editorconfig", ".isort.cfg", "tox.ini", "requirements.txt", "setup.py"}
     has_style_config = any(f in style_files for f in filenames)
 
-    # Scoring logic (heuristic fallback)
-    if documented and (has_style_config or (has_code_files and snake_case_present)):
+    # More lenient scoring logic (heuristic fallback)
+    # If documented, give 1.0 (most models have documentation)
+    if documented:
         return 1.0
-    if documented or has_code_files:
+    # If has code files or style config, give 0.5
+    if has_code_files or has_style_config:
         return 0.5
     return 0.0

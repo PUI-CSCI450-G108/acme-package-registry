@@ -35,33 +35,36 @@ def compute_dataset_code_avail_metric(model_info: Any) -> float:
     readme_lower = readme_content.lower()
 
     # Check for Dataset Availability (+0.5)
-    # 1. Check the structured cardData
+    # 1. Check the structured cardData - must be a non-empty list/value
     dataset_mentioned = False
     if (
         hasattr(model_info, "cardData")
         and model_info.cardData
         and model_info.cardData.get("datasets")
     ):
-        dataset_mentioned = True
-    # 2. Check README for keywords
-    elif "dataset" in readme_lower or "trained on" in readme_lower:
+        datasets = model_info.cardData.get("datasets")
+        # Only count if it's a meaningful value (not empty list/string)
+        if datasets and (isinstance(datasets, list) and len(datasets) > 0 or isinstance(datasets, str) and len(datasets) > 0):
+            dataset_mentioned = True
+    # 2. Check README for keywords - be more strict
+    if not dataset_mentioned and ("dataset:" in readme_lower or "trained on:" in readme_lower):
         dataset_mentioned = True
 
     if dataset_mentioned:
         score += 0.5
 
     # Check for Code/Example Availability (+0.5)
-    # 1. Check for common script files in the repo
+    # 1. Check for common script files in the repo - must be substantial
     code_available = False
-    if hasattr(model_info, "siblings") and any(
-        s.rfilename.endswith((".py", ".ipynb")) for s in model_info.siblings
-    ):
-        code_available = True
-    # 2. Check README for keywords
-    elif any(
-        keyword in readme_lower
-        for keyword in ["example", "inference", "fine-tuning", "how to use", "notebook"]
-    ):
+    if hasattr(model_info, "siblings"):
+        # Must have actual code files (not just config), be more strict
+        code_files = [s for s in model_info.siblings if hasattr(s, "rfilename") and s.rfilename.endswith((".py", ".ipynb"))]
+        # Only count if there are actual code files (not just __init__.py or config)
+        substantive_code = [f for f in code_files if not f.rfilename.endswith("__init__.py") and "config" not in f.rfilename.lower()]
+        if len(substantive_code) > 0:
+            code_available = True
+    # 2. Check README for keywords - must have code blocks or specific usage sections
+    if not code_available and ("```python" in readme_content or "```" in readme_content and "import" in readme_lower):
         code_available = True
 
     if code_available:
