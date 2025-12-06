@@ -420,12 +420,11 @@ Resources:
         - S3ReadPolicy:
             BucketName: !Ref ArtifactsBucket
       Events:
-        # GET /artifact/{artifact_id}
         GetArtifactByIdApi:
           Type: HttpApi
           Properties:
             ApiId: !Ref AcmeApiGateway
-            Path: /artifact/{artifact_id}
+            Path: /artifacts/{artifact_type}/{id}
             Method: GET
 
   # Lambda Function for PUT /artifacts/{artifact_type}/{id}
@@ -579,29 +578,7 @@ Resources:
             ApiId: !Ref AcmeApiGateway
             Path: /audit/package-confusion
             Method: GET
-  
-  GetArtifactsByRegexFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: .
-      Handler: lambda_handlers.get_artifacts_by_regex.handler
-      Description: Search artifacts by regex
-      FunctionName: acme-registry-get-artifacts-by-regex
-      Timeout: 30
-      MemorySize: 256
-      Environment:
-        Variables:
-          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
-      Policies:
-        - S3ReadPolicy:
-            BucketName: !Ref ArtifactsBucket
-      Events:
-        SearchByRegexApi:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref AcmeApiGateway
-            Path: /artifact/byRegEx
-            Method: POST
+
 Outputs:
   ApiGatewayUrl:
     Description: "API Gateway endpoint URL"
