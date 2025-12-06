@@ -5,6 +5,13 @@ import pytest
 from src.metrics.dataset_code_avail import compute_dataset_code_avail_metric
 
 
+# Mock LLM to be unavailable so tests use heuristic fallback
+@pytest.fixture(autouse=True)
+def mock_llm_unavailable():
+    with patch("src.LLM_endpoint.is_llm_available", return_value=False):
+        yield
+
+
 class MockSibling:
     def __init__(self, rfilename):
         self.rfilename = rfilename

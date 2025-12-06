@@ -30,8 +30,24 @@ def compute_dataset_code_avail_metric(model_info: Any) -> float:
     - +0.5 if a training dataset is clearly mentioned.
     - +0.5 if example code/scripts are available.
     """
-    score = 0.0
     readme_content = _fetch_readme_content(model_info)
+
+    # Try LLM-based assessment first if available
+    try:
+        from src.LLM_endpoint import score_with_llm, is_llm_available  # type: ignore
+        if is_llm_available():
+            context = {
+                "card_data": getattr(model_info, "cardData", None) or {},
+                "file_list": [getattr(s, "rfilename", "") for s in (getattr(model_info, "siblings", []) or [])],
+            }
+            llm_score = score_with_llm("dataset_code_avail", readme_content, context)
+            if llm_score is not None:
+                return float(llm_score)
+    except Exception as e:
+        logging.debug(f"dataset_code_avail: LLM scoring unavailable: {e}")
+
+    # Fallback to heuristic
+    score = 0.0
     readme_lower = readme_content.lower()
 
     # Check for Dataset Availability (+0.5)
