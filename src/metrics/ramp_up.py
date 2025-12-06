@@ -88,6 +88,7 @@ def _compute_heuristic_ramp_up_score(readme: str, model_info: Any) -> float:
         if has_example_files:
             score += 0.1
     except Exception:
+        # Ignore errors when checking for example files; bonus is optional and should not block scoring.
         pass
 
     # Cap at 1.0
