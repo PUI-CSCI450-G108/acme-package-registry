@@ -60,6 +60,19 @@ def _build_prompt(task: str, readme: str, context: dict) -> t.List[dict]:
             "Output ONLY a JSON with keys: score (0, 0.5, 1) and reason. Criteria: 1 if benchmarks/evaluation results "
             "are present and clear (tables/metrics); 0.5 if vague or partial claims; 0 if none."
         )
+    elif task == "ramp_up":
+        system = (
+            "You are a technical documentation reviewer assessing ease of onboarding for machine learning models. "
+            "Score the README's effectiveness for helping new users quickly understand and use the model. "
+            "Output ONLY a compact JSON object with keys: score (float from 0.0 to 1.0) and reason (short). "
+            "Scoring guidelines:\n"
+            "0.9-1.0: Excellent - Clear getting-started/quickstart, installation, usage examples with code, well-organized\n"
+            "0.7-0.89: Good - Has most key sections but may lack some examples or have minor organizational issues\n"
+            "0.5-0.69: Adequate - Basic usage info present but missing installation or examples, some friction\n"
+            "0.3-0.49: Poor - Minimal documentation, missing multiple key sections\n"
+            "0.0-0.29: Very Poor - Almost no onboarding documentation\n"
+            "Use the full continuous scale. Focus on practical usability for ramp-up time."
+        )
     else:
         system = (
             "You are an assistant that returns a JSON with 'score' (0, 0.5, 1) and 'reason' based on the user instructions."
