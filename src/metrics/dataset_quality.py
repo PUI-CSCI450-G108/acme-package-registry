@@ -51,17 +51,14 @@ def compute_dataset_quality_metric(model_info: Any) -> float:
     readme_lower = readme_content.lower()
 
     # Keywords that indicate good documentation about the dataset
-    quality_keywords = ["size", "samples", "split", "features", "diversity", "source"]
+    quality_keywords = ["size", "samples", "split", "features", "diversity", "source", "training", "data", "examples"]
 
     found_keywords = sum(1 for keyword in quality_keywords if keyword in readme_lower)
 
-    # Scoring based on findings
-    if found_keywords >= 2:
-        # If at least two quality indicators are present, score is high
+    # More lenient scoring based on findings
+    if found_keywords >= 1:
+        # If at least one quality indicator is present, score is high
         return 1.0
-    elif found_keywords == 1:
-        # If only one is present, it's partial
-        return 0.75
     else:
         # Named but not described well in the README
         return 0.5

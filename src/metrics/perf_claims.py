@@ -26,16 +26,19 @@ def _tier1_heuristic(readme: str, model_info: Any) -> Optional[float]:
     strong_keywords = [
         "accuracy", "f1", "f1-score", "precision", "recall", "bleu", "rouge", "cer", "wer",
         "latency", "throughput", "ms", "fps", "samples/s", "glue", "squad", "mmlu", "hellaswag",
+        "loss", "perplexity", "score", "metric", "eval",
     ]
     has_table = "|" in text and "---" in text  # markdown table heuristic
     numbers = re.findall(r"\b\d{1,3}(?:\.\d+)?%?\b", text)
-    strong_hit = has_table and any(k in text for k in strong_keywords) and len(numbers) >= 1
+
+    # More lenient: if there's a table OR strong keywords with numbers
+    strong_hit = (has_table and len(numbers) >= 1) or (any(k in text for k in strong_keywords) and len(numbers) >= 2)
 
     # cardData may contain evaluation results too
     try:
         card = getattr(model_info, "cardData", None)
         if isinstance(card, dict):
-            if any(key in card for key in ("metrics", "evaluation", "results")):
+            if any(key in card for key in ("metrics", "evaluation", "results", "model-index")):
                 strong_hit = True
     except Exception:
         pass
@@ -44,11 +47,11 @@ def _tier1_heuristic(readme: str, model_info: Any) -> Optional[float]:
         return 1.0
 
     # Check if there's any mention of performance-related terms
-    medium_keywords = ["benchmark", "evaluation", "results", "sota", "state-of-the-art", "compare", "comparison"]
+    medium_keywords = ["benchmark", "evaluation", "results", "sota", "state-of-the-art", "compare", "comparison", "performance", "tested"]
     has_any_perf_mention = any(k in text for k in medium_keywords) or any(k in text for k in strong_keywords)
 
-    # If no performance-related mentions at all and README is substantial, likely no perf claims
-    if not has_any_perf_mention and len(readme.strip()) > 100:
+    # More lenient: if README is very short and has no mentions, score 0
+    if not has_any_perf_mention and len(readme.strip()) > 200:
         return 0.0
 
     # Inconclusive - has some mentions but not clear enough
@@ -75,7 +78,13 @@ def _tier2_llm_analysis(readme: str, model_info: Any) -> float:
 
     # Fallback if LLM unavailable: check for medium signals
     text = readme.lower()
-    medium_keywords = ["benchmark", "evaluation", "results", "sota", "state-of-the-art", "compare", "comparison"]
+    medium_keywords = ["benchmark", "evaluation", "results", "sota", "state-of-the-art", "compare", "comparison", "performance", "tested", "metric"]
+    strong_keywords = ["accuracy", "f1", "precision", "recall", "bleu", "rouge", "loss", "perplexity"]
+
+    # If any strong keyword present, give 1.0
+    if any(k in text for k in strong_keywords):
+        return 1.0
+    # If any medium keyword present, give 0.5
     if any(k in text for k in medium_keywords):
         return 0.5
     return 0.0
