@@ -60,7 +60,7 @@ def compute_dataset_code_avail_metric(model_info: Any) -> float:
     ):
         datasets = model_info.cardData.get("datasets")
         # Only count if it's a meaningful value (not empty list/string)
-        if datasets and (isinstance(datasets, list) and len(datasets) > 0 or isinstance(datasets, str) and len(datasets) > 0):
+        if (isinstance(datasets, list) and len(datasets) > 0) or (isinstance(datasets, str) and len(datasets) > 0):
             dataset_mentioned = True
     # 2. Check README for specific dataset mention patterns (not just the word "dataset")
     if not dataset_mentioned:
