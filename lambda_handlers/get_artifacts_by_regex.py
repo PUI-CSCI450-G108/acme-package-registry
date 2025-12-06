@@ -10,7 +10,7 @@ import json
 import logging
 import re
 from time import perf_counter
-from typing import Dict, Any, Tuple, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from lambda_handlers.utils import (
     create_response,
@@ -19,10 +19,7 @@ from lambda_handlers.utils import (
 )
 
 # Configure logging for Lambda (outputs to CloudWatch Logs)
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(levelname)s %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
 # ---------------------------------------------------------------------------
 # Simple regex safety guardrails (for POST /artifact/byRegEx)
@@ -57,7 +54,10 @@ def is_safe_regex(pattern: str) -> Tuple[bool, Optional[str]]:
     ]
     for bad in nested_quantifiers:
         if re.search(bad, pattern):
-            return False, "Regex contains nested quantifiers that can cause catastrophic backtracking."
+            return (
+                False,
+                "Regex contains nested quantifiers that can cause catastrophic backtracking.",
+            )
 
     # 2) Massive numeric quantifiers like {1,99999} (upper bound with 5+ digits)
     if re.search(r"\{\s*\d+\s*,\s*\d{5,}\s*\}", pattern):
@@ -81,15 +81,13 @@ def is_safe_regex(pattern: str) -> Tuple[bool, Optional[str]]:
     return True, None
 
 
-def _handle_get_by_name(event: Dict[str, Any],
-                        context: Any,
-                        start_time: float) -> Dict:
+def _handle_get_by_name(event: Dict[str, Any], context: Any, start_time: float) -> Dict:
     """
     Original behavior: GET /artifact/byName/{name}
 
     Returns metadata for all artifacts matching the provided name (case-insensitive).
     """
-    name = event.get('pathParameters', {}).get('name')
+    name = event.get("pathParameters", {}).get("name")
     artifact_name = name
 
     if not name:
@@ -103,9 +101,12 @@ def _handle_get_by_name(event: Dict[str, Any],
             status=400,
             error_code="missing_artifact_name",
         )
-        return create_response(400, {
-            "error": "There is missing field(s) in the artifact_name or it is formed improperly, or is invalid."
-        })
+        return create_response(
+            400,
+            {
+                "error": "There is missing field(s) in the artifact_name or it is formed improperly, or is invalid."
+            },
+        )
 
     # Search for artifacts with matching name in S3
     all_artifacts = list_all_artifacts_from_s3()
@@ -146,9 +147,9 @@ def _handle_get_by_name(event: Dict[str, Any],
     return create_response(200, matching_artifacts)
 
 
-def _handle_post_by_regex(event: Dict[str, Any],
-                          context: Any,
-                          start_time: float) -> Dict:
+def _handle_post_by_regex(
+    event: Dict[str, Any], context: Any, start_time: float
+) -> Dict:
     """
     New behavior: POST /artifact/byRegEx
 
@@ -192,7 +193,9 @@ def _handle_post_by_regex(event: Dict[str, Any],
             status=400,
             error_code="regex_not_string",
         )
-        return create_response(400, {"error": "Field 'regex' must be a non-empty string."})
+        return create_response(
+            400, {"error": "Field 'regex' must be a non-empty string."}
+        )
 
     regex_pattern: str = regex_raw
 
@@ -234,17 +237,28 @@ def _handle_post_by_regex(event: Dict[str, Any],
         metadata = artifact_data.get("metadata", {})
 
         name = metadata.get("name", "") or ""
-        model_card = (
-            metadata.get("model_card", "")
-            or metadata.get("card", "")
-            or ""
-        )
+        model_card = metadata.get("model_card", "") or metadata.get("card", "") or ""
 
         # Add more fields to this blob if you want broader search:
         searchable_text = f"{name}\n{model_card}"
 
         if compiled.search(searchable_text):
             matching_artifacts.append(metadata)
+
+    # Return 404 if no matches found (per OpenAPI spec line 763)
+    if not matching_artifacts:
+        latency = perf_counter() - start_time
+        log_event(
+            "warning",
+            f"No artifacts found matching regex pattern: {regex_pattern!r}",
+            event=event,
+            context=context,
+            model_id=regex_pattern,
+            latency=latency,
+            status=404,
+            error_code="artifact_not_found",
+        )
+        return create_response(404, {"error": "No artifact found under this regex."})
 
     latency = perf_counter() - start_time
     log_event(
@@ -257,7 +271,6 @@ def _handle_post_by_regex(event: Dict[str, Any],
         latency=latency,
         status=200,
     )
-    # Empty list is fine: "subset of directory" may be size 0.
     return create_response(200, matching_artifacts)
 
 
