@@ -582,27 +582,27 @@ Resources:
             Method: GET
   
   GetArtifactsByRegexFunction:
-  Type: AWS::Serverless::Function
-  Properties:
-    CodeUri: .
-    Handler: lambda_handlers.get_artifacts_by_regex.handler
-    Description: Search artifacts by regex
-    FunctionName: acme-registry-get-artifacts-by-regex
-    Timeout: 30
-    MemorySize: 256
-    Environment:
-      Variables:
-        ARTIFACTS_BUCKET: !Ref ArtifactsBucket
-    Policies:
-      - S3ReadPolicy:
-          BucketName: !Ref ArtifactsBucket
-    Events:
-      SearchByRegexApi:
-        Type: HttpApi
-        Properties:
-          ApiId: !Ref AcmeApiGateway
-          Path: /artifact/byRegEx
-          Method: POST
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.get_artifacts_by_regex.handler
+      Description: Search artifacts by regex
+      FunctionName: acme-registry-get-artifacts-by-regex
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ArtifactsBucket
+      Events:
+        SearchByRegexApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /artifact/byRegEx
+            Method: POST
   
   
 
