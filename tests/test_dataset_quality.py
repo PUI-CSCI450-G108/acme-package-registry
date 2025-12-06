@@ -47,12 +47,12 @@ def test_dataset_named_but_no_quality_keywords_returns_half(mock_fetch, datasets
 
 @patch("src.metrics.dataset_quality._fetch_readme_content")
 @pytest.mark.parametrize("datasets_value", [["some-dataset"], "some-dataset"])
-def test_exactly_one_quality_keyword_returns_one(mock_fetch, datasets_value):
-    """If one or more quality keywords are present, score is 1.0."""
-    # One keyword: "size" - now returns 1.0 (more lenient for autograder)
+def test_exactly_one_quality_keyword_returns_point_75(mock_fetch, datasets_value):
+    """If one quality keyword is present, score is 0.75."""
+    # One keyword: "size" - returns 0.75 (more discriminating)
     mock_fetch.return_value = "The dataset size is considerable."
     mi = MockModelInfo("mock/repo", cardData={"datasets": datasets_value})
-    assert compute_dataset_quality_metric(mi) == 1.0
+    assert compute_dataset_quality_metric(mi) == 0.75
 
 
 @patch("src.metrics.dataset_quality._fetch_readme_content")
