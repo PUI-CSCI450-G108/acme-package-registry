@@ -1,7 +1,7 @@
 from unittest.mock import Mock, patch
 import pytest
 
-from src.metrics.ramp_up import compute_ramp_up_metric, _compute_heuristic_ramp_up_score
+from src.metrics.ramp_up import compute_ramp_up_metric
 
 
 class MockModelInfo:
