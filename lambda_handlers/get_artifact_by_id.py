@@ -78,8 +78,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             )
 
         all_artifacts = list_all_artifacts_from_s3()
-        artifact_data = all_artifacts.get(artifact_id)
 
+        artifact_data = all_artifacts.get(artifact_id)
         if not artifact_data:
             latency = perf_counter() - start_time
             log_event(
