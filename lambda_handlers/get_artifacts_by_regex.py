@@ -64,9 +64,20 @@ def is_safe_regex(pattern: str) -> Tuple[bool, Optional[str]]:
         return False, "Regex contains extremely large numeric quantifiers."
 
     # 3) Very broad '.*' wrapped in outer quantifiers (e.g., (.*)+)
+    # Note: This check is partially redundant with the nested quantifiers check above,
+    # but is kept for defense-in-depth and clarity.
     if re.search(r"\(\s*\.\*\s*\)\s*[\+\*]", pattern):
         return False, "Regex contains patterns like (.*)+ that are unsafe."
 
+    # 4) Alternation with quantifiers, e.g., (a|aa)*, ([^>]+)+
+    if re.search(r"\((?:[^|]+\|){1,}[^|]+\)[\*\+]", pattern):
+        return False, "Regex contains alternation with quantifiers (e.g., (a|aa)*), which can be unsafe."
+    if re.search(r"\(\s*\[[^\]]+\]\s*\+\s*\)\s*[\+\*]", pattern):
+        return False, "Regex contains character class with quantifier wrapped in another quantifier (e.g., ([^>]+)+), which can be unsafe."
+
+    # 5) Excessive alternation, e.g., (a|a|a|a|...) with many alternatives
+    if re.search(r"\((?:[^|]+\|){9,}[^|]+\)", pattern):
+        return False, "Regex contains excessive alternation (10+ alternatives), which can be unsafe."
     return True, None
 
 
