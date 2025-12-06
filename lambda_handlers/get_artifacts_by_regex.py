@@ -1,9 +1,7 @@
 """
-Lambda handler for:
-- GET /artifact/byName/{name}  -> exact-name lookup
-- POST /artifact/byRegEx       -> regex search over names & model cards
+Lambda handler for POST /artifact/byRegEx - regex search over names & model cards.
 
-Both use list_all_artifacts_from_s3() so results are always a subset
+Uses list_all_artifacts_from_s3() so results are always a subset
 of the "directory" results.
 """
 
@@ -69,72 +67,6 @@ def is_safe_regex(pattern: str) -> Tuple[bool, Optional[str]]:
         return False, "Regex contains patterns like (.*)+ that are unsafe."
 
     return True, None
-
-
-def _handle_get_by_name(event: Dict[str, Any],
-                        context: Any,
-                        start_time: float) -> Dict:
-    """
-    Original behavior: GET /artifact/byName/{name}
-
-    Returns metadata for all artifacts matching the provided name (case-insensitive).
-    """
-    artifact_name = None
-    name = event.get('pathParameters', {}).get('name')
-    artifact_name = name
-
-    if not name:
-        latency = perf_counter() - start_time
-        log_event(
-            "warning",
-            "Missing artifact name in get_artifact_by_name",
-            event=event,
-            context=context,
-            latency=latency,
-            status=400,
-            error_code="missing_artifact_name",
-        )
-        return create_response(400, {
-            "error": "There is missing field(s) in the artifact_name or it is formed improperly, or is invalid."
-        })
-
-    # Search for artifacts with matching name in S3
-    all_artifacts = list_all_artifacts_from_s3()
-    matching_artifacts = []
-    for artifact_id, artifact_data in all_artifacts.items():
-        artifact_metadata = artifact_data.get("metadata", {})
-        current_name = artifact_metadata.get("name", "")
-
-        # Case-insensitive comparison
-        if isinstance(current_name, str) and current_name.lower() == name.lower():
-            matching_artifacts.append(artifact_metadata)
-
-    # Return 404 if no matches found
-    if not matching_artifacts:
-        latency = perf_counter() - start_time
-        log_event(
-            "warning",
-            "No artifacts found matching requested name",
-            event=event,
-            context=context,
-            model_id=artifact_name,
-            latency=latency,
-            status=404,
-            error_code="artifact_not_found",
-        )
-        return create_response(404, {"error": "No such artifact."})
-
-    latency = perf_counter() - start_time
-    log_event(
-        "info",
-        f"Found {len(matching_artifacts)} artifact(s) with name '{name}'",
-        event=event,
-        context=context,
-        model_id=artifact_name,
-        latency=latency,
-        status=200,
-    )
-    return create_response(200, matching_artifacts)
 
 
 def _handle_post_by_regex(event: Dict[str, Any],
@@ -254,35 +186,30 @@ def _handle_post_by_regex(event: Dict[str, Any],
 
 def handler(event: Dict[str, Any], context: Any) -> Dict:
     """
-    Combined Lambda handler:
-
-    - GET  /artifact/byName/{name}  -> exact name search
-    - POST /artifact/byRegEx        -> regex search
+    Lambda handler for POST /artifact/byRegEx - regex search.
 
     API Gateway Event Structure (typical):
-    - event['httpMethod']              - "GET" or "POST"
-    - event['pathParameters']['name']  - For GET /artifact/byName/{name}
-    - event['body']                    - For POST /artifact/byRegEx: {"regex": "..."}
+    - event['httpMethod']  - Expected to be "POST"
+    - event['body']        - JSON: {"regex": "..."}
     """
     start_time = perf_counter()
-    identifier_for_logs: Optional[str] = None
 
     try:
         log_event(
             "info",
-            f"get_artifact_by_name/by_regex invoked: {json.dumps(event)}",
+            f"artifact_by_regex invoked: {json.dumps(event)}",
             event=event,
             context=context,
         )
 
         http_method = event.get("httpMethod")
 
-        # Handle OPTIONS preflight for either path
+        # Handle OPTIONS preflight
         if http_method == "OPTIONS":
             latency = perf_counter() - start_time
             log_event(
                 "info",
-                "Handled OPTIONS preflight in get_artifact_by_name/by_regex",
+                "Handled OPTIONS preflight in artifact_by_regex",
                 event=event,
                 context=context,
                 latency=latency,
@@ -290,22 +217,15 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
             )
             return create_response(200, {})
 
-        # Route based on HTTP method:
-        if http_method == "GET":
-            # GET /artifact/byName/{name}
-            path_params = event.get("pathParameters") or {}
-            identifier_for_logs = path_params.get("name")
-            return _handle_get_by_name(event, context, start_time)
-
-        elif http_method == "POST":
-            # POST /artifact/byRegEx
+        # Only POST is supported
+        if http_method == "POST":
             return _handle_post_by_regex(event, context, start_time)
 
         # Anything else is not allowed
         latency = perf_counter() - start_time
         log_event(
             "warning",
-            f"Unsupported method {http_method} in get_artifact_by_name/by_regex",
+            f"Unsupported method {http_method} in artifact_by_regex",
             event=event,
             context=context,
             latency=latency,
@@ -318,10 +238,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
         latency = perf_counter() - start_time
         log_event(
             "error",
-            f"Unexpected error in get_artifact_by_name/by_regex: {e}",
+            f"Unexpected error in artifact_by_regex: {e}",
             event=event,
             context=context,
-            model_id=identifier_for_logs,
             latency=latency,
             status=500,
             error_code="unexpected_error",
