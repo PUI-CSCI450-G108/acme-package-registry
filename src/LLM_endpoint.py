@@ -105,7 +105,12 @@ def _parse_choice_content(resp: dict) -> str:
 
 
 def score_with_llm(task: str, readme: str, context: dict, model: str | None = None) -> t.Optional[float]:
-    """Call the chat API to get a score in {0, 0.5, 1}. Returns None on failure."""
+    """
+    Call the chat API to get a score.
+    For ramp_up task: returns float in [0.0, 1.0]
+    For other tasks: returns score in {0, 0.5, 1}
+    Returns None on failure.
+    """
     if not is_llm_available():
         return None
 
@@ -130,15 +135,26 @@ def score_with_llm(task: str, readme: str, context: dict, model: str | None = No
         if not isinstance(data, dict):
             return None
         score = data.get("score")
-        if score in (0, 0.0, 0.5, 1, 1.0):
-            return float(score)
-        # Try to coerce numeric
-        try:
-            val = float(score)
-            if val in (0.0, 0.5, 1.0):
-                return val
-        except Exception:
-            return None
+
+        # For ramp_up task, allow continuous scoring [0.0, 1.0]
+        if task == "ramp_up":
+            try:
+                val = float(score)
+                if 0.0 <= val <= 1.0:
+                    return val
+            except Exception:
+                return None
+        else:
+            # For other tasks, only allow {0, 0.5, 1}
+            if score in (0, 0.0, 0.5, 1, 1.0):
+                return float(score)
+            # Try to coerce numeric
+            try:
+                val = float(score)
+                if val in (0.0, 0.5, 1.0):
+                    return val
+            except Exception:
+                return None
     except Exception:
         return None
 
