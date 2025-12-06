@@ -1,7 +1,7 @@
 """
-Lambda handler for:
-- POST /artifact/byRegEx       -> regex search over names & model cards
+Lambda handler for POST /artifact/byRegEx
 
+Performs regex search over artifact names and model cards.
 Uses list_all_artifacts_from_s3(), so results are always a subset
 of the "directory" results.
 """
@@ -10,7 +10,7 @@ import json
 import logging
 import re
 from time import perf_counter
-from typing import Dict, Any, Tuple, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from lambda_handlers.utils import (
     create_response,
@@ -19,10 +19,7 @@ from lambda_handlers.utils import (
 )
 
 # Configure logging for Lambda (outputs to CloudWatch Logs)
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(levelname)s %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
 # ---------------------------------------------------------------------------
 # Simple regex safety guardrails (for POST /artifact/byRegEx)
@@ -57,7 +54,10 @@ def is_safe_regex(pattern: str) -> Tuple[bool, Optional[str]]:
     ]
     for bad in nested_quantifiers:
         if re.search(bad, pattern):
-            return False, "Regex contains nested quantifiers that can cause catastrophic backtracking."
+            return (
+                False,
+                "Regex contains nested quantifiers that can cause catastrophic backtracking.",
+            )
 
     # 2) Massive numeric quantifiers like {1,99999} (upper bound with 5+ digits)
     if re.search(r"\{\s*\d+\s*,\s*\d{5,}\s*\}", pattern):
@@ -71,84 +71,28 @@ def is_safe_regex(pattern: str) -> Tuple[bool, Optional[str]]:
 
     # 4) Alternation with quantifiers, e.g., (a|aa)*, ([^>]+)+
     if re.search(r"\((?:[^|]+\|){1,}[^|]+\)[\*\+]", pattern):
-        return False, "Regex contains alternation with quantifiers (e.g., (a|aa)*), which can be unsafe."
+        return (
+            False,
+            "Regex contains alternation with quantifiers (e.g., (a|aa)*), which can be unsafe.",
+        )
     if re.search(r"\(\s*\[[^\]]+\]\s*\+\s*\)\s*[\+\*]", pattern):
-        return False, "Regex contains character class with quantifier wrapped in another quantifier (e.g., ([^>]+)+), which can be unsafe."
+        return (
+            False,
+            "Regex contains character class with quantifier wrapped in another quantifier (e.g., ([^>]+)+), which can be unsafe.",
+        )
 
     # 5) Excessive alternation, e.g., (a|a|a|a|...) with many alternatives
     if re.search(r"\((?:[^|]+\|){9,}[^|]+\)", pattern):
-        return False, "Regex contains excessive alternation (10+ alternatives), which can be unsafe."
+        return (
+            False,
+            "Regex contains excessive alternation (10+ alternatives), which can be unsafe.",
+        )
     return True, None
 
 
-def _handle_get_by_name(event: Dict[str, Any],
-                        context: Any,
-                        start_time: float) -> Dict:
-    """
-    Original behavior: GET /artifact/byName/{name}
-
-    Returns metadata for all artifacts matching the provided name (case-insensitive).
-    """
-    name = event.get('pathParameters', {}).get('name')
-    artifact_name = name
-
-    if not name:
-        latency = perf_counter() - start_time
-        log_event(
-            "warning",
-            "Missing artifact name in get_artifact_by_name",
-            event=event,
-            context=context,
-            latency=latency,
-            status=400,
-            error_code="missing_artifact_name",
-        )
-        return create_response(400, {
-            "error": "There is missing field(s) in the artifact_name or it is formed improperly, or is invalid."
-        })
-
-    # Search for artifacts with matching name in S3
-    all_artifacts = list_all_artifacts_from_s3()
-    matching_artifacts = []
-    for artifact_id, artifact_data in all_artifacts.items():
-        artifact_metadata = artifact_data.get("metadata", {})
-        current_name = artifact_metadata.get("name", "")
-
-        # Case-insensitive comparison
-        if isinstance(current_name, str) and current_name.lower() == name.lower():
-            matching_artifacts.append(artifact_metadata)
-
-    # Return 404 if no matches found
-    if not matching_artifacts:
-        latency = perf_counter() - start_time
-        log_event(
-            "warning",
-            "No artifacts found matching requested name",
-            event=event,
-            context=context,
-            model_id=artifact_name,
-            latency=latency,
-            status=404,
-            error_code="artifact_not_found",
-        )
-        return create_response(404, {"error": "No such artifact."})
-
-    latency = perf_counter() - start_time
-    log_event(
-        "info",
-        f"Found {len(matching_artifacts)} artifact(s) with name '{name}'",
-        event=event,
-        context=context,
-        model_id=artifact_name,
-        latency=latency,
-        status=200,
-    )
-    return create_response(200, matching_artifacts)
-
-
-def _handle_post_by_regex(event: Dict[str, Any],
-                          context: Any,
-                          start_time: float) -> Dict:
+def _handle_post_by_regex(
+    event: Dict[str, Any], context: Any, start_time: float
+) -> Dict:
     """
     New behavior: POST /artifact/byRegEx
 
@@ -192,7 +136,9 @@ def _handle_post_by_regex(event: Dict[str, Any],
             status=400,
             error_code="regex_not_string",
         )
-        return create_response(400, {"error": "Field 'regex' must be a non-empty string."})
+        return create_response(
+            400, {"error": "Field 'regex' must be a non-empty string."}
+        )
 
     regex_pattern: str = regex_raw
 
@@ -234,11 +180,7 @@ def _handle_post_by_regex(event: Dict[str, Any],
         metadata = artifact_data.get("metadata", {})
 
         name = metadata.get("name", "") or ""
-        model_card = (
-            metadata.get("model_card", "")
-            or metadata.get("card", "")
-            or ""
-        )
+        model_card = metadata.get("model_card", "") or metadata.get("card", "") or ""
 
         # Add more fields to this blob if you want broader search:
         searchable_text = f"{name}\n{model_card}"
@@ -263,15 +205,13 @@ def _handle_post_by_regex(event: Dict[str, Any],
 
 def handler(event: Dict[str, Any], context: Any) -> Dict:
     """
-    Combined Lambda handler:
+    Lambda handler for POST /artifact/byRegEx
 
-    - GET  /artifact/byName/{name}  -> exact name search
-    - POST /artifact/byRegEx        -> regex search
+    Performs regex search over artifact names and model cards.
 
-    API Gateway Event Structure (typical):
-    - event['httpMethod']              - "GET" or "POST"
-    - event['pathParameters']['name']  - For GET /artifact/byName/{name}
-    - event['body']                    - For POST /artifact/byRegEx: {"regex": "..."}
+    API Gateway Event Structure:
+    - event['httpMethod']  - Should be "POST"
+    - event['body']        - JSON body: {"regex": "..."}
     """
     start_time = perf_counter()
     identifier_for_logs: Optional[str] = None
@@ -279,19 +219,19 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
     try:
         log_event(
             "info",
-            f"get_artifact_by_name/by_regex invoked: {json.dumps(event)}",
+            f"get_artifacts_by_regex invoked: {json.dumps(event)}",
             event=event,
             context=context,
         )
 
         http_method = event.get("httpMethod")
 
-        # Handle OPTIONS preflight for either path
+        # Handle OPTIONS preflight
         if http_method == "OPTIONS":
             latency = perf_counter() - start_time
             log_event(
                 "info",
-                "Handled OPTIONS preflight in get_artifact_by_name/by_regex",
+                "Handled OPTIONS preflight in get_artifacts_by_regex",
                 event=event,
                 context=context,
                 latency=latency,
@@ -299,22 +239,15 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
             )
             return create_response(200, {})
 
-        # Route based on HTTP method:
-        if http_method == "GET":
-            # GET /artifact/byName/{name}
-            path_params = event.get("pathParameters") or {}
-            identifier_for_logs = path_params.get("name")
-            return _handle_get_by_name(event, context, start_time)
-
-        elif http_method == "POST":
-            # POST /artifact/byRegEx
+        # Only POST is allowed for this handler
+        if http_method == "POST":
             return _handle_post_by_regex(event, context, start_time)
 
         # Anything else is not allowed
         latency = perf_counter() - start_time
         log_event(
             "warning",
-            f"Unsupported method {http_method} in get_artifact_by_name/by_regex",
+            f"Unsupported method {http_method} in get_artifacts_by_regex",
             event=event,
             context=context,
             latency=latency,
@@ -327,7 +260,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
         latency = perf_counter() - start_time
         log_event(
             "error",
-            f"Unexpected error in get_artifact_by_name/by_regex: {e}",
+            f"Unexpected error in get_artifacts_by_regex: {e}",
             event=event,
             context=context,
             model_id=identifier_for_logs,
