@@ -46,14 +46,9 @@ def compute_code_quality_metric(model_info: Any) -> float:
     except Exception as e:
         logging.debug(f"code_quality: LLM scoring unavailable: {e}")
     readme_lower = readme.lower()
+    readme_length = len(readme.strip())
 
-    # Documentation signals
-    doc_keywords = [
-        "usage", "installation", "how to use", "getting started", "example", "documentation",
-    ]
-    documented = any(k in readme_lower for k in doc_keywords)
-
-    # Code/file signals
+    # Code/file signals - check these first
     siblings = list(_safe_getattr(model_info, "siblings", []) or [])
     filenames = []
     try:
@@ -62,15 +57,34 @@ def compute_code_quality_metric(model_info: Any) -> float:
         filenames = []
 
     has_code_files = any(f.endswith((".py", ".ipynb")) for f in filenames)
-    snake_case_present = any(f.endswith(".py") and ("_" in f) for f in filenames)
 
     # Style/config presence
-    style_files = {"pyproject.toml", "setup.cfg", ".flake8", ".editorconfig", ".isort.cfg", "tox.ini"}
+    style_files = {"pyproject.toml", "setup.cfg", ".flake8", ".editorconfig", ".isort.cfg", "tox.ini", "requirements.txt", "setup.py"}
     has_style_config = any(f in style_files for f in filenames)
 
-    # Scoring logic (heuristic fallback)
-    if documented and (has_style_config or (has_code_files and snake_case_present)):
-        return 1.0
-    if documented or has_code_files:
-        return 0.5
-    return 0.0
+    # If README is very short, check if there's code structure at least
+    if readme_length < 100:
+        if has_code_files or has_style_config:
+            return 0.5  # Has code but minimal docs
+        else:
+            return 0.0  # Nothing substantial
+
+    # Strong documentation signals (more than just basic keywords)
+    strong_doc_keywords = [
+        "usage", "installation", "how to use", "getting started", "quickstart",
+        "## usage", "## installation", "## example", "## quick start"
+    ]
+    has_strong_docs = any(k in readme_lower for k in strong_doc_keywords)
+
+    # Check for actual code examples in README
+    has_code_examples = "```" in readme and ("import" in readme_lower or "from" in readme_lower)
+
+    # More discriminating scoring logic
+    if has_strong_docs and has_code_examples:
+        return 1.0  # Well documented with examples
+    elif has_strong_docs or has_code_examples:
+        return 0.5  # Some documentation
+    elif has_code_files or has_style_config or readme_length > 500:
+        return 0.5  # Has some structure
+    else:
+        return 0.0  # Minimal quality

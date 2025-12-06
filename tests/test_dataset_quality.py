@@ -5,6 +5,13 @@ import pytest
 from src.metrics.dataset_quality import compute_dataset_quality_metric
 
 
+# Mock LLM to be unavailable so tests use heuristic fallback
+@pytest.fixture(autouse=True)
+def mock_llm_unavailable():
+    with patch("src.LLM_endpoint.is_llm_available", return_value=False):
+        yield
+
+
 class MockModelInfo:
     def __init__(self, repo_id, cardData=None):
         self.id = repo_id
@@ -30,8 +37,9 @@ def test_dataset_named_but_no_readme_returns_half(mock_fetch, datasets_value):
 @pytest.mark.parametrize("datasets_value", [["some-dataset"], "some-dataset"])
 def test_dataset_named_but_no_quality_keywords_returns_half(mock_fetch, datasets_value):
     """If dataset exists but README lacks quality keywords, score is 0.5."""
+    # Updated: "dataset" is now a quality keyword, so this needs to not contain any keywords
     mock_fetch.return_value = (
-        "This README mentions a dataset but has no detailed fields."
+        "This README mentions it but has no detailed fields."
     )
     mi = MockModelInfo("mock/repo", cardData={"datasets": datasets_value})
     assert compute_dataset_quality_metric(mi) == 0.5
@@ -40,8 +48,8 @@ def test_dataset_named_but_no_quality_keywords_returns_half(mock_fetch, datasets
 @patch("src.metrics.dataset_quality._fetch_readme_content")
 @pytest.mark.parametrize("datasets_value", [["some-dataset"], "some-dataset"])
 def test_exactly_one_quality_keyword_returns_point_75(mock_fetch, datasets_value):
-    """If exactly one quality keyword is present, score is 0.75."""
-    # One keyword: "size"
+    """If one quality keyword is present, score is 0.75."""
+    # One keyword: "size" - returns 0.75 (more discriminating)
     mock_fetch.return_value = "The dataset size is considerable."
     mi = MockModelInfo("mock/repo", cardData={"datasets": datasets_value})
     assert compute_dataset_quality_metric(mi) == 0.75

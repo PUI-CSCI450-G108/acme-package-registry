@@ -57,7 +57,10 @@ Resources:
           - DELETE
           - OPTIONS
         MaxAge: 600
-
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 1000
+        ThrottlingRateLimit: 500
+        
   # S3 Bucket for artifact storage
   ArtifactsBucket:
     Type: AWS::S3::Bucket
@@ -155,6 +158,8 @@ Resources:
           HF_TOKEN: !Ref HuggingFaceToken
           ARTIFACTS_BUCKET: !Ref ArtifactsBucket
           ENABLE_FULL_MODEL_DOWNLOAD: "false" #TODO: Set to desired runtime value
+          THRESHOLD_ENABLED: "false"
+          URL_VALIDATION_ENABLED: "false"
       Policies:
         - S3WritePolicy:
             BucketName: !Ref ArtifactsBucket
@@ -423,39 +428,129 @@ Resources:
             Path: /artifact/{artifact_id}
             Method: GET
 
-        # GET /artifact/{artifact_type}/{artifact_id}
-        GetArtifactByTypeAndIdApi:
+  
+  # Lambda Function for PUT /artifacts/{artifact_type}/{id}
+  UpdateArtifactFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.update_artifact.handler
+      Description: Update existing artifact
+      FunctionName: acme-registry-update-artifact
+      Timeout: 300
+      MemorySize: 2048
+      Environment:
+        Variables:
+          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+          HF_TOKEN: !Ref HuggingFaceToken
+          MIN_NET_SCORE: "0.5"
+          GIT_LFS_SKIP_SMUDGE: "1"
+          HF_HUB_DISABLE_PROGRESS_BARS: "1"
+          HF_HOME: "/tmp/huggingface"
+          HUGGINGFACE_HUB_CACHE: "/tmp/huggingface/hub"
+          TRANSFORMERS_CACHE: "/tmp/huggingface/transformers"
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ArtifactsBucket
+        - S3WritePolicy:
+            BucketName: !Ref ArtifactsBucket
+      Events:
+        UpdateArtifactApi:
           Type: HttpApi
           Properties:
             ApiId: !Ref AcmeApiGateway
-            Path: /artifact/{artifact_type}/{artifact_id}
+            Path: /artifacts/{artifact_type}/{id}
+            Method: PUT
+
+  # Lambda Function for DELETE /artifacts/{artifact_type}/{id}
+  DeleteArtifactFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.delete_artifact.handler
+      Description: Delete artifact by ID
+      FunctionName: acme-registry-delete-artifact
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref ArtifactsBucket
+      Events:
+        DeleteArtifactApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /artifacts/{artifact_type}/{id}
+            Method: DELETE
+
+  # Lambda Function for GET /artifact/{artifact_type}/{id}/cost
+  ArtifactCostFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.artifact_cost.handler
+      Description: Get the cost (size in MB) of an artifact
+      FunctionName: acme-registry-artifact-cost
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ArtifactsBucket
+      Events:
+        ArtifactCostApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /artifact/{artifact_type}/{id}/cost
             Method: GET
-  
 
-  GetArtifactsByRegexFunction:
-  Type: AWS::Serverless::Function
-  Properties:
-    CodeUri: .
-    Handler: lambda_handlers.get_artifacts_by_regex.handler
-    Description: Search artifacts by regex
-    FunctionName: acme-registry-get-artifacts-by-regex
-    Timeout: 30
-    MemorySize: 256
-    Environment:
-      Variables:
-        ARTIFACTS_BUCKET: !Ref ArtifactsBucket
-    Policies:
-      - S3ReadPolicy:
-          BucketName: !Ref ArtifactsBucket
-    Events:
-      SearchByRegexApi:
-        Type: HttpApi
-        Properties:
-          ApiId: !Ref AcmeApiGateway
-          Path: /artifact/byRegEx
-          Method: POST
+  # Lambda Function for GET /artifact/model/{id}/lineage
+  ArtifactLineageFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.artifact_lineage.handler
+      Description: Get the lineage graph for a model artifact
+      FunctionName: acme-registry-artifact-lineage
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ArtifactsBucket
+      Events:
+        ArtifactLineageApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /artifact/model/{id}/lineage
+            Method: GET
 
-  
+  # Lambda Function for GET /tracks
+  TracksFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.tracks.handler
+      Description: Get list of planned implementation tracks
+      FunctionName: acme-registry-tracks
+      Timeout: 10
+      MemorySize: 128
+      Events:
+        TracksApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /tracks
+            Method: GET
 
     # Lambda Function for GET /audit/package-confusion
   PackageConfusionAuditFunction:
@@ -485,6 +580,31 @@ Resources:
             ApiId: !Ref AcmeApiGateway
             Path: /audit/package-confusion
             Method: GET
+  
+  GetArtifactsByRegexFunction:
+  Type: AWS::Serverless::Function
+  Properties:
+    CodeUri: .
+    Handler: lambda_handlers.get_artifacts_by_regex.handler
+    Description: Search artifacts by regex
+    FunctionName: acme-registry-get-artifacts-by-regex
+    Timeout: 30
+    MemorySize: 256
+    Environment:
+      Variables:
+        ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+    Policies:
+      - S3ReadPolicy:
+          BucketName: !Ref ArtifactsBucket
+    Events:
+      SearchByRegexApi:
+        Type: HttpApi
+        Properties:
+          ApiId: !Ref AcmeApiGateway
+          Path: /artifact/byRegEx
+          Method: POST
+  
+  
 
 Outputs:
   ApiGatewayUrl:
