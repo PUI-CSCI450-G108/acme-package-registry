@@ -428,7 +428,6 @@ Resources:
             Path: /artifact/{artifact_id}
             Method: GET
 
-  
   # Lambda Function for PUT /artifacts/{artifact_type}/{id}
   UpdateArtifactFunction:
     Type: AWS::Serverless::Function
