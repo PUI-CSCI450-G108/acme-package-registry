@@ -159,16 +159,6 @@ def score_with_llm(task: str, readme: str, context: dict, model: str | None = No
                     return val
             except Exception:
                 return None
-        elif task == "dataset_code_avail":
-            # For dataset_code_avail, allow {0, 0.5, 1} (sum of two 0.5 components)
-            if score in (0, 0.0, 0.5, 1, 1.0):
-                return float(score)
-            try:
-                val = float(score)
-                if val in (0.0, 0.5, 1.0):
-                    return val
-            except Exception:
-                return None
         else:
             # For other tasks, only allow {0, 0.5, 1}
             if score in (0, 0.0, 0.5, 1, 1.0):
