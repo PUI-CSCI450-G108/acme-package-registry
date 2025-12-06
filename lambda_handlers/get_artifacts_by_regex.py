@@ -1,6 +1,7 @@
 """
-Lambda handler for POST /artifact/byRegEx - regex search over names & model cards
+Lambda handler for POST /artifact/byRegEx
 
+Performs regex search over artifact names and model cards.
 Uses list_all_artifacts_from_s3(), so results are always a subset
 of the "directory" results.
 """
@@ -70,19 +71,28 @@ def is_safe_regex(pattern: str) -> Tuple[bool, Optional[str]]:
 
     # 4) Alternation with quantifiers, e.g., (a|aa)*, ([^>]+)+
     if re.search(r"\((?:[^|]+\|){1,}[^|]+\)[\*\+]", pattern):
-        return False, "Regex contains alternation with quantifiers (e.g., (a|aa)*), which can be unsafe."
+        return (
+            False,
+            "Regex contains alternation with quantifiers (e.g., (a|aa)*), which can be unsafe.",
+        )
     if re.search(r"\(\s*\[[^\]]+\]\s*\+\s*\)\s*[\+\*]", pattern):
-        return False, "Regex contains character class with quantifier wrapped in another quantifier (e.g., ([^>]+)+), which can be unsafe."
+        return (
+            False,
+            "Regex contains character class with quantifier wrapped in another quantifier (e.g., ([^>]+)+), which can be unsafe.",
+        )
 
     # 5) Excessive alternation, e.g., (a|a|a|a|...) with many alternatives
     if re.search(r"\((?:[^|]+\|){9,}[^|]+\)", pattern):
-        return False, "Regex contains excessive alternation (10+ alternatives), which can be unsafe."
+        return (
+            False,
+            "Regex contains excessive alternation (10+ alternatives), which can be unsafe.",
+        )
     return True, None
 
 
-def _handle_post_by_regex(event: Dict[str, Any],
-                          context: Any,
-                          start_time: float) -> Dict:
+def _handle_post_by_regex(
+    event: Dict[str, Any], context: Any, start_time: float
+) -> Dict:
     """
     New behavior: POST /artifact/byRegEx
 
@@ -209,11 +219,13 @@ def _handle_post_by_regex(event: Dict[str, Any],
 
 def handler(event: Dict[str, Any], context: Any) -> Dict:
     """
-    Lambda handler for POST /artifact/byRegEx (regex search).
+    Lambda handler for POST /artifact/byRegEx
+
+    Performs regex search over artifact names and model cards.
 
     API Gateway Event Structure:
-    - event['httpMethod']  - "POST"
-    - event['body']        - JSON: {"regex": "..."}
+    - event['httpMethod']  - Should be "POST"
+    - event['body']        - JSON body: {"regex": "..."}
     """
     start_time = perf_counter()
 
@@ -240,7 +252,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
             )
             return create_response(200, {})
 
-        # Only POST is supported
+        # Only POST is allowed for this handler
         if http_method == "POST":
             return _handle_post_by_regex(event, context, start_time)
 
