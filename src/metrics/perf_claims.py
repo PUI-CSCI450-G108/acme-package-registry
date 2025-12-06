@@ -76,18 +76,33 @@ def _tier2_llm_analysis(readme: str, model_info: Any) -> float:
     except Exception as e:
         logging.debug(f"perf_claims: LLM scoring failed: {e}")
 
-    # Fallback if LLM unavailable: check for medium signals
+    # Fallback if LLM unavailable: be more discriminating
     text = readme.lower()
-    medium_keywords = ["benchmark", "evaluation", "results", "sota", "state-of-the-art", "compare", "comparison", "performance", "tested", "metric"]
-    strong_keywords = ["accuracy", "f1", "precision", "recall", "bleu", "rouge", "loss", "perplexity"]
 
-    # If any strong keyword present, give 1.0
-    if any(k in text for k in strong_keywords):
+    # Check for actual numbers (metrics need numbers!)
+    numbers = re.findall(r"\b\d+(?:\.\d+)?%?\b", readme)
+
+    # Strong metric keywords
+    strong_keywords = ["accuracy", "f1", "precision", "recall", "bleu", "rouge", "loss", "perplexity"]
+    has_strong_keyword = any(k in text for k in strong_keywords)
+
+    # Medium keywords (less specific)
+    medium_keywords = ["benchmark", "evaluation", "results", "sota", "state-of-the-art"]
+    has_medium_keyword = any(k in text for k in medium_keywords)
+
+    # Tables suggest structured metrics
+    has_table = "|" in readme and "---" in readme
+
+    # Be more discriminating:
+    # 1.0: Strong keyword + numbers, OR table with numbers
+    if (has_strong_keyword and len(numbers) >= 1) or (has_table and len(numbers) >= 2):
         return 1.0
-    # If any medium keyword present, give 0.5
-    if any(k in text for k in medium_keywords):
+    # 0.5: Medium keyword (with or without numbers), OR strong keyword alone
+    elif has_medium_keyword or has_strong_keyword:
         return 0.5
-    return 0.0
+    # 0.0: No concrete performance info
+    else:
+        return 0.0
 
 
 def compute_perf_claims_metric(model_info: Any) -> float:

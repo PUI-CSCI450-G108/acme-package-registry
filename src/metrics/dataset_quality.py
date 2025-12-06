@@ -62,18 +62,29 @@ def compute_dataset_quality_metric(model_info: Any) -> float:
     except Exception as e:
         logging.debug(f"dataset_quality: LLM scoring unavailable: {e}")
 
-    # Fallback to heuristic
+    # Fallback to heuristic - be more discriminating
     readme_lower = readme_content.lower()
 
-    # Keywords that indicate good documentation about the dataset
-    quality_keywords = ["size", "samples", "split", "features", "diversity", "source", "training", "data", "examples"]
+    # Specific quality indicators (not just generic words)
+    strong_quality_keywords = [
+        "dataset size", "number of samples", "train/test split", "validation split",
+        "dataset features", "data source", "training data"
+    ]
 
-    found_keywords = sum(1 for keyword in quality_keywords if keyword in readme_lower)
+    # General quality keywords (less specific)
+    general_keywords = ["size", "samples", "split", "features", "examples", "rows", "instances"]
 
-    # More lenient scoring based on findings
-    if found_keywords >= 1:
-        # If at least one quality indicator is present, score is high
+    # Count specific mentions
+    found_strong = sum(1 for keyword in strong_quality_keywords if keyword in readme_lower)
+    found_general = sum(1 for keyword in general_keywords if keyword in readme_lower)
+
+    # More discriminating scoring
+    if found_strong >= 2 or found_general >= 3:
+        # Multiple specific properties documented
         return 1.0
+    elif found_strong >= 1 or found_general >= 1:
+        # Some properties mentioned
+        return 0.75
     else:
         # Named but not described well in the README
         return 0.5
