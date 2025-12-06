@@ -1,9 +1,8 @@
 """
 Lambda handler for:
-- GET /artifact/byName/{name}  -> exact-name lookup
 - POST /artifact/byRegEx       -> regex search over names & model cards
 
-Both use list_all_artifacts_from_s3() so results are always a subset
+Uses list_all_artifacts_from_s3(), so results are always a subset
 of the "directory" results.
 """
 
