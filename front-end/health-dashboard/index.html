@@ -63,6 +63,22 @@
     const HEALTH_URL = "https://436cwsdtp3.execute-api.us-east-1.amazonaws.com/health";
     const REFRESH_MS = 15000;
 
+    function formatToLocalTime(value) {
+      if (!value) return "–";
+      let date;
+      if (value instanceof Date) {
+        date = value;
+      } else if (typeof value === "string") {
+        const trimmed = value.trim();
+        const parsed = new Date(trimmed);
+        if (isNaN(parsed.getTime())) return "–";
+        date = parsed;
+      } else {
+        return "–";
+      }
+      return date.toLocaleTimeString(undefined, { hour12: false });
+    }
+
     async function fetchHealth() {
       const errorEl = document.getElementById("error-message");
       errorEl.style.display = "none";
@@ -80,7 +96,7 @@
         setUnhealthyVisuals("unknown");
       } finally {
         document.getElementById("last-updated").textContent =
-          "Last refresh: " + new Date().toLocaleTimeString();
+          "Last refresh: " + formatToLocalTime(new Date());
       }
     }
 
@@ -91,9 +107,9 @@
       document.getElementById("status-value").textContent = data.status || "unknown";
       document.getElementById("artifacts-count").textContent = data.artifacts_count ?? "–";
       document.getElementById("window-minutes").textContent = data.window_minutes ?? "–";
-      document.getElementById("window-start").textContent = data.window_start || "–";
-      document.getElementById("window-end").textContent = data.window_end || "–";
-      document.getElementById("timestamp").textContent = data.timestamp || "–";
+      document.getElementById("window-start").textContent = formatToLocalTime(data.window_start);
+      document.getElementById("window-end").textContent = formatToLocalTime(data.window_end);
+      document.getElementById("timestamp").textContent = formatToLocalTime(data.timestamp);
 
       if (status === "healthy") setHealthyVisuals();
       else setUnhealthyVisuals(status || "unknown");
