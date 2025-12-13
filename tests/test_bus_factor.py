@@ -37,9 +37,9 @@ def test_bus_factor_multiple_authors(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     model = DummyModelInfo("org/model")
-    # counts: alice=2, bob=2, carol=1 → gini ≈ 0.1333
+    # counts: alice=2, bob=2, carol=1 → gini ≈ 0.1333 → score = 1 - 0.1333 ≈ 0.8667
     score = compute_bus_factor_metric(model)
-    assert pytest.approx(score, rel=1e-3, abs=1e-3) == 0.1333
+    assert pytest.approx(score, rel=1e-3, abs=1e-3) == 0.8667
 
 
 def test_bus_factor_no_commits_returns_zero(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -85,11 +85,13 @@ def test_invalid_model_returns_zero() -> None:
 def test_gini_clamped_via_monkeypatch(monkeypatch: pytest.MonkeyPatch) -> None:
     # Force gini out of bounds to hit clamp branches
     monkeypatch.setattr("src.metrics.bus_factor._count_commits_by_author_api", lambda *a, **k: {"a": 1}, raising=True)
+    # gini = -0.5 → clamped to 0.0 → score = 1 - 0 = 1.0
     monkeypatch.setattr("src.metrics.bus_factor._gini_from_counts", lambda counts: -0.5, raising=True)
-    assert compute_bus_factor_metric({"id": "org/model"}) == 0.0
-
-    monkeypatch.setattr("src.metrics.bus_factor._gini_from_counts", lambda counts: 1.5, raising=True)
     assert compute_bus_factor_metric({"id": "org/model"}) == 1.0
+
+    # gini = 1.5 → clamped to 1.0 → score = 1 - 1 = 0.0
+    monkeypatch.setattr("src.metrics.bus_factor._gini_from_counts", lambda counts: 1.5, raising=True)
+    assert compute_bus_factor_metric({"id": "org/model"}) == 0.0
 
 
 def test_top_level_exception_path(monkeypatch: pytest.MonkeyPatch) -> None:

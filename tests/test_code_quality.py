@@ -1,4 +1,14 @@
+from unittest.mock import patch
+import pytest
+
 from src.metrics.code_quality import compute_code_quality_metric
+
+
+# Mock LLM to be unavailable so tests use heuristic fallback
+@pytest.fixture(autouse=True)
+def mock_llm_unavailable():
+    with patch("src.LLM_endpoint.is_llm_available", return_value=False):
+        yield
 
 
 class Sibling:
@@ -13,10 +23,26 @@ class DummyModel:
 
 
 def test_code_quality_good_docs_and_style(monkeypatch):
-    # README contains usage section, repo has pyproject.toml (style) and snake_case file
+    # README contains usage section with code examples
+    readme = """# Model
+
+## Installation
+pip install this-model
+
+## Usage
+Here's how to use this model:
+
+```python
+from model import Model
+model = Model()
+result = model.predict(data)
+```
+
+This provides a comprehensive guide to using the model.
+"""
     monkeypatch.setattr(
         "src.metrics.dataset_code_avail._fetch_readme_content",
-        lambda m: "# Model\n\n## Usage\nRun this example...",
+        lambda m: readme,
     )
     model = DummyModel("org/model", [Sibling("pyproject.toml"), Sibling("utils_helper.py")])
     assert compute_code_quality_metric(model) == 1.0

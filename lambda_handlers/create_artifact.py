@@ -114,8 +114,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
 
         # Extract optional name from request body
         provided_name = body.get('name', '').strip() if body.get('name') else None
-        # Validate URL format based on artifact type
-        if not is_valid_artifact_url(url, artifact_type):
+
+        # Validate URL format based on artifact type (if validation is enabled)
+        url_validation_enabled = os.environ.get('URL_VALIDATION_ENABLED', 'true').lower() == 'true'
+        if url_validation_enabled and not is_valid_artifact_url(url, artifact_type):
             latency = perf_counter() - start_time
             error_msg = {
                 "model": "Invalid URL. Must be a valid HuggingFace model URL (e.g., https://huggingface.co/org/model).",
@@ -160,8 +162,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
 
                 rating = evaluate_model(url, artifact_store=artifact_store)
 
-                # Check if rating is acceptable
-                if rating.get("net_score", 0) < MIN_NET_SCORE_THRESHOLD:
+                # Check if rating is acceptable (if threshold is enabled)
+                threshold_enabled = os.environ.get('THRESHOLD_ENABLED', 'true').lower() == 'true'
+                if threshold_enabled and rating.get("net_score", 0) < MIN_NET_SCORE_THRESHOLD:
                     latency = perf_counter() - start_time
                     log_event(
                         "warning",
@@ -179,6 +182,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
 
                 # Use provided name if available, otherwise use name from rating
                 name = provided_name if provided_name else rating.get("name", "unknown")
+
+                # Extract base_model for lineage tracking (if present in rating)
+                # Note: base_model is not part of ModelRating schema but is added by evaluate_model
+                base_model = rating.pop("base_model", None)
             except Exception as e:
                 latency = perf_counter() - start_time
                 log_event(
@@ -202,6 +209,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
             else:
                 name = url.split("/")[-1] if "/" in url else "unknown"
             rating = None
+            base_model = None
 
         # Create artifact metadata
         metadata = {
@@ -217,6 +225,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
             "rating": rating,
             "type": artifact_type
         }
+
+        # Add base_model to artifact data if present (for lineage tracking)
+        if base_model is not None:
+            artifact_data["base_model"] = base_model
+
         save_artifact_to_s3(artifact_id, artifact_data)
 
         latency = perf_counter() - start_time

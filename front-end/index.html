@@ -218,44 +218,6 @@
         </div>
     </div>
 
-    <!-- Configuration Modal (for first-time setup) -->
-    <div id="config-modal" class="modal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="config-modal-title">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 id="config-modal-title">API Configuration</h2>
-            </div>
-            <div class="modal-body">
-                <p>Please configure your API settings to continue.</p>
-                <form id="config-form" onsubmit="return false;">
-                    <div class="form-group">
-                        <label for="config-api-url">API Base URL: <span class="required" aria-label="required">*</span></label>
-                        <input
-                            type="url"
-                            id="config-api-url"
-                            class="input-field"
-                            placeholder="https://your-api-gateway-url.amazonaws.com/Prod"
-                            required
-                            aria-required="true"
-                        >
-                    </div>
-                    <div class="form-group">
-                        <label for="config-auth-token">X-Authorization Token (optional):</label>
-                        <input
-                            type="text"
-                            id="config-auth-token"
-                            class="input-field"
-                            placeholder="bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                            aria-describedby="token-help"
-                        >
-                        <span id="token-help" class="form-help visually-hidden">Optional authentication token for API requests</span>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button onclick="saveConfiguration()" class="btn-primary">Save Configuration</button>
-            </div>
-        </div>
-    </div>
 
     <script src="scripts.js"></script>
 </body>

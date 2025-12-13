@@ -57,7 +57,10 @@ Resources:
           - DELETE
           - OPTIONS
         MaxAge: 600
-
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 1000
+        ThrottlingRateLimit: 500
+        
   # S3 Bucket for artifact storage
   ArtifactsBucket:
     Type: AWS::S3::Bucket
@@ -155,6 +158,8 @@ Resources:
           HF_TOKEN: !Ref HuggingFaceToken
           ARTIFACTS_BUCKET: !Ref ArtifactsBucket
           ENABLE_FULL_MODEL_DOWNLOAD: "false" #TODO: Set to desired runtime value
+          THRESHOLD_ENABLED: "false"
+          URL_VALIDATION_ENABLED: "false"
       Policies:
         - S3WritePolicy:
             BucketName: !Ref ArtifactsBucket
@@ -454,6 +459,78 @@ Resources:
             ApiId: !Ref AcmeApiGateway
             Path: /artifacts/{artifact_type}/{id}
             Method: PUT
+
+  # Lambda Function for DELETE /artifacts/{artifact_type}/{id}
+  DeleteArtifactFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.delete_artifact.handler
+      Description: Delete artifact by ID
+      FunctionName: acme-registry-delete-artifact
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref ArtifactsBucket
+      Events:
+        DeleteArtifactApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /artifacts/{artifact_type}/{id}
+            Method: DELETE
+
+  # Lambda Function for GET /artifact/{artifact_type}/{id}/cost
+  ArtifactCostFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.artifact_cost.handler
+      Description: Get the cost (size in MB) of an artifact
+      FunctionName: acme-registry-artifact-cost
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ArtifactsBucket
+      Events:
+        ArtifactCostApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /artifact/{artifact_type}/{id}/cost
+            Method: GET
+
+  # Lambda Function for GET /artifact/model/{id}/lineage
+  ArtifactLineageFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.artifact_lineage.handler
+      Description: Get the lineage graph for a model artifact
+      FunctionName: acme-registry-artifact-lineage
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ArtifactsBucket
+      Events:
+        ArtifactLineageApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /artifact/model/{id}/lineage
+            Method: GET
 
   # Lambda Function for GET /tracks
   TracksFunction:

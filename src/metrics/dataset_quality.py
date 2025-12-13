@@ -48,19 +48,42 @@ def compute_dataset_quality_metric(model_info: Any) -> float:
     if not readme_content:
         return 0.5  # Dataset is named, but we can't verify quality from README
 
+    # Try LLM-based assessment first if available
+    try:
+        from src.LLM_endpoint import score_with_llm, is_llm_available  # type: ignore
+        if is_llm_available():
+            context = {
+                "dataset_name": dataset_name,
+                "card_data": getattr(model_info, "cardData", None) or {},
+            }
+            llm_score = score_with_llm("dataset_quality", readme_content, context)
+            if llm_score is not None:
+                return float(llm_score)
+    except Exception as e:
+        logging.debug(f"dataset_quality: LLM scoring unavailable: {e}")
+
+    # Fallback to heuristic - be more discriminating
     readme_lower = readme_content.lower()
 
-    # Keywords that indicate good documentation about the dataset
-    quality_keywords = ["size", "samples", "split", "features", "diversity", "source"]
+    # Specific quality indicators (not just generic words)
+    strong_quality_keywords = [
+        "dataset size", "number of samples", "train/test split", "validation split",
+        "dataset features", "data source", "training data"
+    ]
 
-    found_keywords = sum(1 for keyword in quality_keywords if keyword in readme_lower)
+    # General quality keywords (less specific)
+    general_keywords = ["size", "samples", "split", "features", "examples", "rows", "instances"]
 
-    # Scoring based on findings
-    if found_keywords >= 2:
-        # If at least two quality indicators are present, score is high
+    # Count specific mentions
+    found_strong = sum(1 for keyword in strong_quality_keywords if keyword in readme_lower)
+    found_general = sum(1 for keyword in general_keywords if keyword in readme_lower)
+
+    # More discriminating scoring
+    if found_strong >= 2 or found_general >= 3:
+        # Multiple specific properties documented
         return 1.0
-    elif found_keywords == 1:
-        # If only one is present, it's partial
+    elif found_strong >= 1 or found_general >= 1:
+        # Some properties mentioned
         return 0.75
     else:
         # Named but not described well in the README

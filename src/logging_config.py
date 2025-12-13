@@ -2,10 +2,11 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
-import boto3
-from botocore.exceptions import ClientError
+if TYPE_CHECKING:
+    import boto3
+    from botocore.exceptions import ClientError
 
 
 class JsonFormatter(logging.Formatter):
@@ -50,6 +51,8 @@ class CloudWatchLogsHandler(logging.Handler):
         region_name: Optional[str] = None,
     ) -> None:
         super().__init__()
+        # Import boto3 only when CloudWatch logging is actually used
+        import boto3
         session = boto3.Session()
         self.client = session.client("logs", region_name=region_name)
         self.log_group = log_group
@@ -58,6 +61,7 @@ class CloudWatchLogsHandler(logging.Handler):
         self._ensure_resources()
 
     def _ensure_resources(self) -> None:
+        from botocore.exceptions import ClientError
         try:
             self.client.create_log_group(logGroupName=self.log_group)
         except ClientError as exc:  # pragma: no cover - benign race
@@ -76,6 +80,7 @@ class CloudWatchLogsHandler(logging.Handler):
                 raise
 
     def emit(self, record: logging.LogRecord) -> None:  # pragma: no cover - network interaction
+        from botocore.exceptions import ClientError
         message = self.format(record)
         timestamp = int(record.created * 1000)
         event = {"timestamp": timestamp, "message": message}
@@ -161,6 +166,7 @@ def setup_logging():
     cw_log_group = os.environ.get("CLOUDWATCH_LOG_GROUP")
     cw_log_stream = os.environ.get("CLOUDWATCH_LOG_STREAM")
     if cw_log_group and cw_log_stream:
+        from botocore.exceptions import ClientError
         region_name = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION")
         try:
             cw_handler = CloudWatchLogsHandler(
