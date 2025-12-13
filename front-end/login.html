@@ -7,44 +7,60 @@
     <link rel="stylesheet" href="login-styles.css">
 </head>
 <body>
-    <div class="login-container">
+    <main class="login-container">
         <div class="login-card">
-            <div class="login-header">
+            <header class="login-header">
                 <h1>ACME Package Registry</h1>
                 <p class="subtitle">Trustworthy Model, Dataset & Code Repository</p>
-            </div>
+            </header>
 
             <div class="login-body">
-                <p class="login-message">Sign in to continue</p>
-                <form id="login-form" onsubmit="handleLogin(event)">
-                    <input
-                        type="url"
-                        id="api-url-input"
-                        class="login-input"
-                        placeholder="API Base URL (e.g. https://example.execute-api...)"
-                        required
-                    >
-                    <input
-                        type="text"
-                        id="username-input"
-                        class="login-input"
-                        placeholder="Username"
-                        autofocus
-                        required
-                    >
-                    <input
-                        type="password"
-                        id="password-input"
-                        class="login-input"
-                        placeholder="Password"
-                        required
-                    >
-                    <div id="login-error" class="login-error" style="display: none;"></div>
+                <h2 class="login-message">Sign in to continue</h2>
+                <form id="login-form" onsubmit="handleLogin(event)" aria-labelledby="login-message">
+                    <div class="form-group">
+                        <label for="api-url-input">API Base URL <span class="required" aria-label="required">*</span></label>
+                        <input
+                            type="url"
+                            id="api-url-input"
+                            class="login-input"
+                            placeholder="API Base URL (e.g. https://example.execute-api...)"
+                            required
+                            aria-required="true"
+                            aria-describedby="api-url-help"
+                        >
+                        <span id="api-url-help" class="visually-hidden">Enter the base URL for the ACME API Gateway</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="username-input">Username <span class="required" aria-label="required">*</span></label>
+                        <input
+                            type="text"
+                            id="username-input"
+                            class="login-input"
+                            placeholder="Username"
+                            autofocus
+                            required
+                            aria-required="true"
+                            autocomplete="username"
+                        >
+                    </div>
+                    <div class="form-group">
+                        <label for="password-input">Password <span class="required" aria-label="required">*</span></label>
+                        <input
+                            type="password"
+                            id="password-input"
+                            class="login-input"
+                            placeholder="Password"
+                            required
+                            aria-required="true"
+                            autocomplete="current-password"
+                        >
+                    </div>
+                    <div id="login-error" class="login-error" style="display: none;" role="alert" aria-live="assertive"></div>
                     <button type="submit" class="login-btn">Login</button>
                 </form>
             </div>
         </div>
-    </div>
+    </main>
 
     <script src="login-scripts.js"></script>
 </body>

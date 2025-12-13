@@ -7,6 +7,9 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <!-- Skip to main content link for keyboard users -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
     <!-- Hidden API Configuration -->
     <input type="hidden" id="apiBaseUrl" value="">
     <input type="hidden" id="authToken" value="">
@@ -16,86 +19,99 @@
         <header class="header">
             <h1>ACME Package Registry</h1>
             <p class="subtitle">Trustworthy Model, Dataset & Code Repository</p>
-            <div class="header-buttons">
-                <button onclick="goToHealthDashboard()" class="health-btn">📊 Health Dashboard</button>
-                <button onclick="logout()" class="logout-btn">Logout</button>
-            </div>
+            <nav class="header-buttons" aria-label="Main navigation">
+                <button onclick="goToHealthDashboard()" class="health-btn" aria-label="View health dashboard">
+                    <span aria-hidden="true">📊</span> Health Dashboard
+                </button>
+                <button onclick="logout()" class="logout-btn" aria-label="Log out of application">Logout</button>
+            </nav>
         </header>
 
         <!-- Search and Actions Bar -->
         <div class="actions-bar">
-            <div class="search-container">
+            <search class="search-container" role="search" aria-label="Search artifacts">
+                <label for="search-input" class="visually-hidden">Search by name or ID</label>
                 <input
-                    type="text"
+                    type="search"
                     id="search-input"
                     placeholder="Search by name or ID"
                     class="search-input"
+                    aria-label="Search by name or ID"
                 >
                 <button onclick="searchArtifacts()" class="search-btn">Search</button>
-            </div>
+            </search>
             <div class="action-buttons">
-                <button onclick="showRegisterModal()" class="add-btn" id="register-user-btn" style="display: none;">+ Register User</button>
-                <button onclick="showAddArtifactModal()" class="add-btn">+ Add Artifact</button>
+                <button onclick="showRegisterModal()" class="add-btn" id="register-user-btn" style="display: none;" aria-label="Register a new user">+ Register User</button>
+                <button onclick="showAddArtifactModal()" class="add-btn" aria-label="Add a new artifact">+ Add Artifact</button>
             </div>
         </div>
 
-        <!-- Loading State -->
-        <div id="loading" class="loading-state" style="display: none;">
-            <div class="spinner"></div>
-            <p>Loading artifacts...</p>
-        </div>
+        <!-- Main Content Area -->
+        <main id="main-content">
+            <!-- Loading State -->
+            <div id="loading" class="loading-state" style="display: none;" role="status" aria-live="polite">
+                <div class="spinner" aria-hidden="true"></div>
+                <p>Loading artifacts...</p>
+            </div>
 
-        <!-- Error State -->
-        <div id="error-state" class="error-state" style="display: none;">
-            <p id="error-message"></p>
-        </div>
+            <!-- Error State -->
+            <div id="error-state" class="error-state" style="display: none;" role="alert" aria-live="assertive">
+                <p id="error-message"></p>
+            </div>
 
-        <!-- Empty State -->
-        <div id="empty-state" class="empty-state" style="display: none;">
-            <h2>No artifacts found</h2>
-            <p>Get started by adding your first artifact!</p>
-        </div>
+            <!-- Empty State -->
+            <div id="empty-state" class="empty-state" style="display: none;">
+                <h2>No artifacts found</h2>
+                <p>Get started by adding your first artifact!</p>
+            </div>
 
-        <!-- Artifacts Grid -->
-        <div id="artifacts-grid" class="artifacts-grid">
-            <!-- Cards will be populated here by JavaScript -->
-        </div>
+            <!-- Artifacts Grid -->
+            <div id="artifacts-grid" class="artifacts-grid" role="list" aria-label="Artifacts">
+                <!-- Cards will be populated here by JavaScript -->
+            </div>
+        </main>
 
         <!-- Pagination -->
-        <div id="pagination" class="pagination" style="display: none;">
-            <button onclick="loadPage('prev')" id="prev-btn" class="pagination-btn" disabled>Previous</button>
-            <span id="page-info">Page 1</span>
-            <button onclick="loadPage('next')" id="next-btn" class="pagination-btn">Next</button>
-        </div>
+        <nav id="pagination" class="pagination" style="display: none;" aria-label="Pagination navigation">
+            <button onclick="loadPage('prev')" id="prev-btn" class="pagination-btn" disabled aria-label="Go to previous page">Previous</button>
+            <span id="page-info" aria-live="polite" aria-atomic="true">Page 1</span>
+            <button onclick="loadPage('next')" id="next-btn" class="pagination-btn" aria-label="Go to next page">Next</button>
+        </nav>
     </div>
 
     <!-- Add Artifact Modal -->
-    <div id="add-modal" class="modal" style="display: none;">
+    <div id="add-modal" class="modal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="add-modal-title">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Add New Artifact</h2>
-                <button onclick="closeAddModal()" class="close-btn">&times;</button>
+                <h2 id="add-modal-title">Add New Artifact</h2>
+                <button onclick="closeAddModal()" class="close-btn" aria-label="Close dialog">&times;</button>
             </div>
             <div class="modal-body">
-                <div class="form-group">
-                    <label for="artifact-type">Artifact Type:</label>
-                    <select id="artifact-type" class="input-field">
-                        <option value="model">Model</option>
-                        <option value="dataset">Dataset</option>
-                        <option value="code">Code</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="artifact-url">URL:</label>
-                    <input
-                        type="url"
-                        id="artifact-url"
-                        class="input-field"
-                        placeholder="https://huggingface.co/google-bert/bert-base-uncased"
-                    >
-                </div>
-                <div id="add-error" class="modal-error" style="display: none;"></div>
-                <div id="add-success" class="modal-success" style="display: none;"></div>
+                <form id="add-artifact-form" onsubmit="return false;">
+                    <div class="form-group">
+                        <label for="artifact-type">Artifact Type: <span class="required" aria-label="required">*</span></label>
+                        <select id="artifact-type" class="input-field" required aria-required="true">
+                            <option value="model">Model</option>
+                            <option value="dataset">Dataset</option>
+                            <option value="code">Code</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="artifact-url">URL: <span class="required" aria-label="required">*</span></label>
+                        <input
+                            type="url"
+                            id="artifact-url"
+                            class="input-field"
+                            placeholder="https://huggingface.co/google-bert/bert-base-uncased"
+                            required
+                            aria-required="true"
+                            aria-describedby="url-help"
+                        >
+                        <span id="url-help" class="form-help visually-hidden">Enter a valid HuggingFace URL for the artifact</span>
+                    </div>
+                    <div id="add-error" class="modal-error" style="display: none;" role="alert" aria-live="assertive"></div>
+                    <div id="add-success" class="modal-success" style="display: none;" role="status" aria-live="polite"></div>
+                </form>
             </div>
             <div class="modal-footer">
                 <button onclick="closeAddModal()" class="btn-secondary">Cancel</button>
@@ -105,41 +121,38 @@
     </div>
 
     <!-- Artifact Detail Modal -->
-    <div id="detail-modal" class="modal" style="display: none;">
+    <div id="detail-modal" class="modal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="detail-name">
         <div class="modal-content">
             <div class="modal-header">
                 <h2 id="detail-name">Artifact Details</h2>
-                <button onclick="closeDetailModal()" class="close-btn">&times;</button>
+                <button onclick="closeDetailModal()" class="close-btn" aria-label="Close dialog">&times;</button>
             </div>
             <div class="modal-body">
-                <div class="detail-row">
-                    <span class="detail-label">Type:</span>
-                    <span id="detail-type" class="badge"></span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">ID:</span>
-                    <span id="detail-id"></span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Source URL:</span>
-                    <a id="detail-url" href="#" target="_blank" class="detail-link"></a>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Net Score:</span>
-                    <div class="score-container">
-                        <div class="score-bar">
-                            <div id="detail-score-fill" class="score-fill"></div>
-                        </div>
-                        <span id="detail-score-text" class="score-text"></span>
+                <dl class="detail-list">
+                    <div class="detail-row">
+                        <dt class="detail-label">Type:</dt>
+                        <dd id="detail-type" class="badge"></dd>
                     </div>
-                </div>
-
-                <div class="detail-section">
-                    <h3 class="detail-section-title">Metric Ratings</h3>
-                    <div id="metric-ratings-container">
-                        <!-- Metric ratings will be populated by JavaScript -->
+                    <div class="detail-row">
+                        <dt class="detail-label">ID:</dt>
+                        <dd id="detail-id"></dd>
                     </div>
-                </div>
+                    <div class="detail-row">
+                        <dt class="detail-label">Source URL:</dt>
+                        <dd><a id="detail-url" href="#" target="_blank" rel="noopener noreferrer" class="detail-link" aria-label="Open artifact source URL in new tab"></a></dd>
+                    </div>
+                    <div class="detail-row">
+                        <dt class="detail-label">Quality Score:</dt>
+                        <dd>
+                            <div class="score-container">
+                                <div class="score-bar" role="progressbar" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0" aria-labelledby="detail-score-text">
+                                    <div id="detail-score-fill" class="score-fill"></div>
+                                </div>
+                                <span id="detail-score-text" class="score-text"></span>
+                            </div>
+                        </dd>
+                    </div>
+                </dl>
             </div>
             <div class="modal-footer">
                 <button onclick="closeDetailModal()" class="btn-primary">Close</button>
@@ -148,36 +161,55 @@
     </div>
 
     <!-- Register User Modal -->
-    <div id="register-modal" class="modal" style="display: none;">
+    <div id="register-modal" class="modal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="register-modal-title">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Register New User</h2>
-                <button onclick="closeRegisterModal()" class="close-btn">&times;</button>
+                <h2 id="register-modal-title">Register New User</h2>
+                <button onclick="closeRegisterModal()" class="close-btn" aria-label="Close dialog">&times;</button>
             </div>
             <div class="modal-body">
-                <div class="form-group">
-                    <label for="register-username">Username</label>
-                    <input type="text" id="register-username" class="input-field" placeholder="Enter username">
-                </div>
-                <div class="form-group">
-                    <label for="register-password">Password</label>
-                    <input type="password" id="register-password" class="input-field" placeholder="Minimum 8 characters">
-                </div>
-                <div class="form-group">
-                    <label for="register-confirm-password">Confirm Password</label>
-                    <input type="password" id="register-confirm-password" class="input-field" placeholder="Re-enter password">
-                </div>
-                <div class="form-group">
-                    <label>Permissions</label>
-                    <div class="checkbox-group">
-                        <label><input type="checkbox" id="register-can-upload"> Can upload</label>
-                        <label><input type="checkbox" id="register-can-search"> Can search</label>
-                        <label><input type="checkbox" id="register-can-download"> Can download</label>
-                        <label><input type="checkbox" id="register-is-admin"> Is admin (grants all permissions)</label>
+                <form id="register-user-form" onsubmit="return false;">
+                    <div class="form-group">
+                        <label for="register-username">Username <span class="required" aria-label="required">*</span></label>
+                        <input type="text" id="register-username" class="input-field" placeholder="Enter username" required aria-required="true">
                     </div>
-                </div>
-                <div id="register-error" class="modal-error" style="display: none;"></div>
-                <div id="register-success" class="modal-success" style="display: none;"></div>
+                    <div class="form-group">
+                        <label for="register-password">Password <span class="required" aria-label="required">*</span></label>
+                        <input type="password" id="register-password" class="input-field" placeholder="Minimum 8 characters" required aria-required="true" aria-describedby="password-help">
+                        <span id="password-help" class="form-help visually-hidden">Password must be at least 8 characters long</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="register-confirm-password">Confirm Password <span class="required" aria-label="required">*</span></label>
+                        <input type="password" id="register-confirm-password" class="input-field" placeholder="Re-enter password" required aria-required="true">
+                    </div>
+                    <fieldset class="form-group">
+                        <legend>Permissions</legend>
+                        <div class="checkbox-group">
+                            <label>
+                                <input type="checkbox" id="register-can-upload" aria-describedby="upload-desc">
+                                <span>Can upload</span>
+                                <span id="upload-desc" class="visually-hidden">Allow user to upload artifacts</span>
+                            </label>
+                            <label>
+                                <input type="checkbox" id="register-can-search" aria-describedby="search-desc">
+                                <span>Can search</span>
+                                <span id="search-desc" class="visually-hidden">Allow user to search for artifacts</span>
+                            </label>
+                            <label>
+                                <input type="checkbox" id="register-can-download" aria-describedby="download-desc">
+                                <span>Can download</span>
+                                <span id="download-desc" class="visually-hidden">Allow user to download artifacts</span>
+                            </label>
+                            <label>
+                                <input type="checkbox" id="register-is-admin" aria-describedby="admin-desc">
+                                <span>Is admin (grants all permissions)</span>
+                                <span id="admin-desc" class="visually-hidden">Administrator status grants all permissions</span>
+                            </label>
+                        </div>
+                    </fieldset>
+                    <div id="register-error" class="modal-error" style="display: none;" role="alert" aria-live="assertive"></div>
+                    <div id="register-success" class="modal-success" style="display: none;" role="status" aria-live="polite"></div>
+                </form>
             </div>
             <div class="modal-footer">
                 <button onclick="closeRegisterModal()" class="btn-secondary">Cancel</button>

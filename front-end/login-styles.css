@@ -4,6 +4,19 @@
     box-sizing: border-box;
 }
 
+/* Visually hidden class for screen reader only text */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -12,6 +25,12 @@ body {
     justify-content: center;
     align-items: center;
     padding: 20px;
+}
+
+/* Focus visible styles for better keyboard navigation */
+*:focus-visible {
+    outline: 3px solid #667eea;
+    outline-offset: 2px;
 }
 
 .login-container {
@@ -62,7 +81,7 @@ body {
 
 .login-message {
     text-align: center;
-    color: #666;
+    color: #4a4a4a;
     font-size: 1.1em;
     margin-bottom: 30px;
     font-weight: 500;
@@ -72,6 +91,25 @@ body {
     display: flex;
     flex-direction: column;
     gap: 20px;
+}
+
+/* Form group styling */
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-group label {
+    color: #333;
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+/* Required field indicator */
+.required {
+    color: #dc3545;
+    font-weight: bold;
 }
 
 .login-input {

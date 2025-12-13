@@ -11,6 +11,12 @@ body {
     padding: 20px;
 }
 
+/* Focus visible styles for better keyboard navigation */
+*:focus-visible {
+    outline: 3px solid #667eea;
+    outline-offset: 2px;
+}
+
 .back-button-container {
     max-width: 450px;
     margin: 0 auto 10px auto;
@@ -85,7 +91,7 @@ body {
 }
 
 .label {
-  color: #6b7280;
+  color: #4a5568;
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -98,10 +104,19 @@ body {
   word-break: break-all;
 }
 
+/* Improved dt/dd styling for semantic HTML */
+dt {
+  margin: 0;
+}
+
+dd {
+  margin: 0;
+}
+
 .footer {
   margin-top: 14px;
   font-size: 0.8rem;
-  color: #6b7280;
+  color: #4a5568;
   display: flex;
   justify-content: space-between;
   align-items: center;
