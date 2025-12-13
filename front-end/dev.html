@@ -3,119 +3,124 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ACME Package Registry</title>
+    <title>ACME Package Registry - Testing Interface</title>
     <link rel="stylesheet" href="dev-styles.css">
 </head>
 <body>
     <div class="container">
-        <h1>ACME Package Registry</h1>
-        <p class="subtitle">Trustworthy Model Registry - Testing Interface</p>
+        <header>
+            <h1>ACME Package Registry</h1>
+            <p class="subtitle">Trustworthy Model Registry - Testing Interface</p>
+        </header>
 
-        <!-- Configuration Section -->
-        <div class="config-section">
-            <h3>API Configuration</h3>
-            <div class="form-group">
-                <label for="apiBaseUrl">API Base URL:</label>
-                <input type="url" id="apiBaseUrl" placeholder="https://your-api-gateway-url.amazonaws.com/Prod" value="">
-            </div>
-            <div class="form-group">
-                <label for="authToken">X-Authorization Token (optional):</label>
-                <input type="text" id="authToken" placeholder="bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
-            </div>
-        </div>
-
-        <!-- Health Check -->
-        <div class="api-section">
-            <h2>1. Health Check</h2>
-            <p>Test if the API is reachable.</p>
-            <button onclick="healthCheck()">Check Health</button>
-            <div id="health-response" class="response"></div>
-        </div>
-
-        <!-- Create Artifact -->
-        <div class="api-section">
-            <h2>2. Create Artifact</h2>
-            <div class="form-group">
-                <label for="create-type">Artifact Type:</label>
-                <select id="create-type">
-                    <option value="model">Model</option>
-                    <option value="dataset">Dataset</option>
-                    <option value="code">Code</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="create-url">URL:</label>
-                <input type="url" id="create-url" placeholder="https://huggingface.co/google-bert/bert-base-uncased">
-            </div>
-            <button onclick="createArtifact()">Create Artifact</button>
-            <div id="create-response" class="response"></div>
-        </div>
-
-        <!-- List Artifacts -->
-        <div class="api-section">
-            <h2>3. List Artifacts</h2>
-            <div class="form-group">
-                <label for="list-query">Query (JSON array of artifact queries):</label>
-                <textarea id="list-query" placeholder='[{"name": "*"}]'>[{"name": "*"}]</textarea>
-            </div>
-            <div class="form-group">
-                <label for="list-offset">Offset (optional):</label>
-                <input type="text" id="list-offset" placeholder="0">
-            </div>
-            <button onclick="listArtifacts()">List Artifacts</button>
-            <div id="list-response" class="response"></div>
-        </div>
-
-        <!-- Get Artifact by Name -->
-        <div class="api-section">
-            <h2>4. Get Artifact by Name</h2>
-            <div class="form-group">
-                <label for="byname-name">Artifact Name:</label>
-                <input type="text" id="byname-name" placeholder="bert-base-uncased">
-            </div>
-            <button onclick="getArtifactByName()">Get Artifact</button>
-            <div id="byname-response" class="response"></div>
-        </div>
-
-        <!-- Get Artifact by ID -->
-        <div class="api-section">
-            <h2>5. Get Artifact by ID</h2>
-            <div class="inline-group">
+        <main>
+            <!-- Configuration Section -->
+            <section class="config-section" aria-labelledby="config-heading">
+                <h2 id="config-heading">API Configuration</h2>
                 <div class="form-group">
-                    <label for="byid-type">Artifact Type:</label>
-                    <select id="byid-type">
+                    <label for="apiBaseUrl">API Base URL: <span class="required" aria-label="required">*</span></label>
+                    <input type="url" id="apiBaseUrl" placeholder="https://your-api-gateway-url.amazonaws.com/Prod" value="" aria-required="true">
+                </div>
+                <div class="form-group">
+                    <label for="authToken">X-Authorization Token (optional):</label>
+                    <input type="text" id="authToken" placeholder="bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." aria-describedby="token-help">
+                    <span id="token-help" class="visually-hidden">Optional authorization token for authenticated requests</span>
+                </div>
+            </section>
+
+            <!-- Health Check -->
+            <section class="api-section" aria-labelledby="health-heading">
+                <h2 id="health-heading">1. Health Check</h2>
+                <p>Test if the API is reachable.</p>
+                <button onclick="healthCheck()" aria-label="Check API health status">Check Health</button>
+                <div id="health-response" class="response" role="status" aria-live="polite" aria-atomic="true"></div>
+            </section>
+
+            <!-- Create Artifact -->
+            <section class="api-section" aria-labelledby="create-heading">
+                <h2 id="create-heading">2. Create Artifact</h2>
+                <div class="form-group">
+                    <label for="create-type">Artifact Type:</label>
+                    <select id="create-type" aria-label="Select artifact type">
                         <option value="model">Model</option>
                         <option value="dataset">Dataset</option>
                         <option value="code">Code</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="byid-id">Artifact ID:</label>
-                    <input type="text" id="byid-id" placeholder="9078563412">
+                    <label for="create-url">URL:</label>
+                    <input type="url" id="create-url" placeholder="https://huggingface.co/google-bert/bert-base-uncased" aria-label="Enter artifact URL">
                 </div>
-            </div>
-            <button onclick="getArtifactById()">Get Artifact</button>
-            <div id="byid-response" class="response"></div>
-        </div>
+                <button onclick="createArtifact()" aria-label="Create new artifact">Create Artifact</button>
+                <div id="create-response" class="response" role="status" aria-live="polite" aria-atomic="true"></div>
+            </section>
 
-        <!-- Rate Artifact -->
-        <div class="api-section">
-            <h2>6. Rate Model Artifact</h2>
-            <div class="form-group">
-                <label for="rate-id">Model ID:</label>
-                <input type="text" id="rate-id" placeholder="9078563412">
-            </div>
-            <button onclick="rateArtifact()">Rate Artifact</button>
-            <div id="rate-response" class="response"></div>
-        </div>
+            <!-- List Artifacts -->
+            <section class="api-section" aria-labelledby="list-heading">
+                <h2 id="list-heading">3. List Artifacts</h2>
+                <div class="form-group">
+                    <label for="list-query">Query (JSON array of artifact queries):</label>
+                    <textarea id="list-query" placeholder='[{"name": "*"}]' aria-label="Enter JSON query for listing artifacts">[{"name": "*"}]</textarea>
+                </div>
+                <div class="form-group">
+                    <label for="list-offset">Offset (optional):</label>
+                    <input type="text" id="list-offset" placeholder="0" aria-label="Enter offset for pagination">
+                </div>
+                <button onclick="listArtifacts()" aria-label="List artifacts matching query">List Artifacts</button>
+                <div id="list-response" class="response" role="status" aria-live="polite" aria-atomic="true"></div>
+            </section>
 
-        <!-- Reset Registry -->
-        <div class="api-section">
-            <h2>7. Reset Registry</h2>
-            <p style="color: #dc3545; margin-bottom: 10px;"><strong>Warning:</strong> This will delete all artifacts!</p>
-            <button onclick="resetRegistry()" style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);">Reset Registry</button>
-            <div id="reset-response" class="response"></div>
-        </div>
+            <!-- Get Artifact by Name -->
+            <section class="api-section" aria-labelledby="byname-heading">
+                <h2 id="byname-heading">4. Get Artifact by Name</h2>
+                <div class="form-group">
+                    <label for="byname-name">Artifact Name:</label>
+                    <input type="text" id="byname-name" placeholder="bert-base-uncased">
+                </div>
+                <button onclick="getArtifactByName()" aria-label="Get artifact by name">Get Artifact</button>
+                <div id="byname-response" class="response" role="status" aria-live="polite" aria-atomic="true"></div>
+            </section>
+
+            <!-- Get Artifact by ID -->
+            <section class="api-section" aria-labelledby="byid-heading">
+                <h2 id="byid-heading">5. Get Artifact by ID</h2>
+                <div class="inline-group">
+                    <div class="form-group">
+                        <label for="byid-type">Artifact Type:</label>
+                        <select id="byid-type" aria-label="Select artifact type">
+                            <option value="model">Model</option>
+                            <option value="dataset">Dataset</option>
+                            <option value="code">Code</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="byid-id">Artifact ID:</label>
+                        <input type="text" id="byid-id" placeholder="9078563412" aria-label="Enter artifact ID">
+                    </div>
+                </div>
+                <button onclick="getArtifactById()" aria-label="Get artifact by ID">Get Artifact</button>
+                <div id="byid-response" class="response" role="status" aria-live="polite" aria-atomic="true"></div>
+            </section>
+
+            <!-- Rate Artifact -->
+            <section class="api-section" aria-labelledby="rate-heading">
+                <h2 id="rate-heading">6. Rate Model Artifact</h2>
+                <div class="form-group">
+                    <label for="rate-id">Model ID:</label>
+                    <input type="text" id="rate-id" placeholder="9078563412" aria-label="Enter model ID to rate">
+                </div>
+                <button onclick="rateArtifact()" aria-label="Rate artifact">Rate Artifact</button>
+                <div id="rate-response" class="response" role="status" aria-live="polite" aria-atomic="true"></div>
+            </section>
+
+            <!-- Reset Registry -->
+            <section class="api-section" aria-labelledby="reset-heading">
+                <h2 id="reset-heading">7. Reset Registry</h2>
+                <p class="warning-text"><strong>Warning:</strong> This will delete all artifacts!</p>
+                <button onclick="resetRegistry()" class="reset-button" aria-label="Reset registry - Warning: This will delete all artifacts">Reset Registry</button>
+                <div id="reset-response" class="response" role="status" aria-live="polite" aria-atomic="true"></div>
+            </section>
+        </main>
     </div>
 
     <script src="dev-scripts.js"></script>

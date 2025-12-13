@@ -69,8 +69,10 @@ function isCurrentUserAdmin() {
 // Configuration Management
 // ============================================
 
+const DEFAULT_API_URL = 'https://436cwsdtp3.execute-api.us-east-1.amazonaws.com';
+
 function getApiBaseUrl() {
-    return localStorage.getItem('apiBaseUrl') || '';
+    return localStorage.getItem('apiBaseUrl') || DEFAULT_API_URL;
 }
 
 function getAuthToken() {
@@ -107,42 +109,16 @@ async function logout() {
     }
 
     try {
-        if (baseUrl) {
-            await fetch(`${baseUrl}/auth/logout`, {
-                method: 'POST',
-                headers: getHeaders()
-            });
-        }
+        await fetch(`${baseUrl}/auth/logout`, {
+            method: 'POST',
+            headers: getHeaders()
+        });
     } catch (error) {
         console.error('Logout request failed:', error);
     } finally {
         localStorage.removeItem('authToken');
         window.location.href = 'login.html';
     }
-}
-
-function saveConfiguration() {
-    const apiUrl = document.getElementById('config-api-url').value.trim();
-    const authToken = document.getElementById('config-auth-token').value.trim();
-
-    if (!apiUrl) {
-        alert('Please enter an API Base URL');
-        return;
-    }
-
-    localStorage.setItem('apiBaseUrl', apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl);
-    localStorage.setItem('authToken', authToken);
-
-    document.getElementById('config-modal').style.display = 'none';
-    loadArtifacts();
-}
-
-function checkConfiguration() {
-    if (!getApiBaseUrl()) {
-        document.getElementById('config-modal').style.display = 'flex';
-        return false;
-    }
-    return true;
 }
 
 // ============================================
@@ -185,8 +161,6 @@ function showArtifacts() {
 // ============================================
 
 async function loadArtifacts() {
-    if (!checkConfiguration()) return;
-
     showLoading();
 
     try {
@@ -306,8 +280,6 @@ function loadPage(direction) {
 // ============================================
 
 async function searchArtifacts() {
-    if (!checkConfiguration()) return;
-
     const searchInput = document.getElementById('search-input').value.trim();
 
     // If search is empty, just load all artifacts
@@ -374,8 +346,6 @@ async function searchArtifacts() {
 // ============================================
 
 function showAddArtifactModal() {
-    if (!checkConfiguration()) return;
-
     document.getElementById('add-modal').style.display = 'flex';
     document.getElementById('artifact-url').value = '';
     document.getElementById('artifact-type').value = 'model';
@@ -477,7 +447,6 @@ function resetRegisterForm() {
 }
 
 function showRegisterModal() {
-    if (!checkConfiguration()) return;
     if (!isCurrentUserAdmin()) {
         alert('Admin privileges are required to register users.');
         return;
@@ -615,7 +584,56 @@ function showArtifactDetail(artifact) {
     document.getElementById('detail-score-fill').style.width = `${netScore * 100}%`;
     document.getElementById('detail-score-text').textContent = `${(netScore * 100).toFixed(1)}%`;
 
+    // Populate metric ratings
+    populateMetricRatings(data);
+
     document.getElementById('detail-modal').style.display = 'flex';
+}
+
+function populateMetricRatings(data) {
+    const container = document.getElementById('metric-ratings-container');
+    container.innerHTML = '';
+
+    // Define the metrics to display with user-friendly names
+    const metrics = [
+        { key: 'ramp_up_time', label: 'Ramp-Up Time' },
+        { key: 'bus_factor', label: 'Bus Factor' },
+        { key: 'performance_claims', label: 'Performance Claims' },
+        { key: 'license', label: 'License' },
+        { key: 'dataset_and_code_score', label: 'Dataset & Code Availability' },
+        { key: 'dataset_quality', label: 'Dataset Quality' },
+        { key: 'code_quality', label: 'Code Quality' },
+        { key: 'reproducibility', label: 'Reproducibility' },
+        { key: 'reviewedness', label: 'Reviewedness' },
+        { key: 'tree_score', label: 'Supply Chain Health' }
+    ];
+
+    metrics.forEach(metric => {
+        const value = data[metric.key];
+        if (value !== undefined && value !== null) {
+            const metricRow = document.createElement('div');
+            metricRow.className = 'metric-row';
+
+            const scorePercentage = (value * 100).toFixed(1);
+
+            metricRow.innerHTML = `
+                <div class="metric-label">${escapeHtml(metric.label)}:</div>
+                <div class="metric-score-container">
+                    <div class="metric-score-bar">
+                        <div class="metric-score-fill" style="width: ${scorePercentage}%"></div>
+                    </div>
+                    <span class="metric-score-text">${scorePercentage}%</span>
+                </div>
+            `;
+
+            container.appendChild(metricRow);
+        }
+    });
+
+    // If no metrics are available
+    if (container.children.length === 0) {
+        container.innerHTML = '<p class="no-metrics">No metric ratings available</p>';
+    }
 }
 
 function closeDetailModal() {
@@ -627,17 +645,6 @@ function closeDetailModal() {
 // ============================================
 
 window.addEventListener('DOMContentLoaded', function() {
-    // Load saved configuration
-    const savedUrl = getApiBaseUrl();
-    const savedToken = getAuthToken();
-
-    if (savedUrl) {
-        document.getElementById('config-api-url').value = savedUrl;
-    }
-    if (savedToken) {
-        document.getElementById('config-auth-token').value = savedToken;
-    }
-
     toggleAdminFeatures();
 
     // Handle Enter key in search input
@@ -652,15 +659,12 @@ window.addEventListener('DOMContentLoaded', function() {
     }
 
     // Load artifacts on page load
-    if (checkConfiguration()) {
-        loadArtifacts();
-    }
+    loadArtifacts();
 
     // Close modals when clicking outside
     window.onclick = function(event) {
         const addModal = document.getElementById('add-modal');
         const detailModal = document.getElementById('detail-modal');
-        const configModal = document.getElementById('config-modal');
         const registerModal = document.getElementById('register-modal');
 
         if (event.target === addModal) {
@@ -669,9 +673,6 @@ window.addEventListener('DOMContentLoaded', function() {
             closeDetailModal();
         } else if (event.target === registerModal) {
             closeRegisterModal();
-        } else if (event.target === configModal && getApiBaseUrl()) {
-            // Only allow closing config modal if API URL is set
-            configModal.style.display = 'none';
         }
     };
 });
