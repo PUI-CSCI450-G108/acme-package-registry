@@ -158,11 +158,7 @@ DEFAULT_ADMIN_PASSWORD = "correcthorsebatterystaple123(!__+@**(A'\"`;DROP TABLE 
 
 
 def initialize_default_admin(repository: UserRepository) -> User:
-    """Create the default admin user if it does not already exist."""
-    existing_user = repository.get_user(DEFAULT_ADMIN_USERNAME)
-    if existing_user:
-        return existing_user
-    else: print("Initializing default user.")
+    repository.delete_user(DEFAULT_ADMIN_USERNAME)
 
     return create_user(
         repository,
@@ -173,4 +169,3 @@ def initialize_default_admin(repository: UserRepository) -> User:
         can_download=True,
         is_admin=True,
     )
-
