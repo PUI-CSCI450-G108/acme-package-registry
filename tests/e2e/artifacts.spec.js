@@ -41,7 +41,7 @@ test.describe('Artifact Viewing', () => {
     await page.goto('/front-end/index.html');
 
     // Wait for artifacts to load
-    await page.waitForTimeout(2000);
+    await expect(page.locator('#loading')).toBeHidden();
 
     // Check if we have any artifact cards
     const artifactCards = page.locator('.artifact-card');
