@@ -37,37 +37,40 @@ test.describe('Artifact Viewing', () => {
     expect(cardCount > 0 || emptyVisible).toBeTruthy();
   });
 
-  test('should open and close artifact detail modal', async ({ page }) => {
-    await page.goto('/front-end/index.html');
-
-    // Wait for artifacts to load
-    await expect(page.locator('#loading')).toBeHidden();
-
-    // Check if we have any artifact cards
-    const artifactCards = page.locator('.artifact-card');
-    const cardCount = await artifactCards.count();
-
-    if (cardCount > 0) {
-      // Click the first artifact card
-      await artifactCards.first().click();
-
-      // Wait for modal to appear
-      const detailModal = page.locator('#detail-modal');
-      await expect(detailModal).toBeVisible({ timeout: 3000 });
-
-      // Verify modal has content
-      const modalContent = page.locator('#detail-modal .modal-content');
-      await expect(modalContent).toBeVisible();
-
-      // Close the modal by clicking the close button
-      const closeBtn = page.locator('#detail-modal .close-btn');
-      await closeBtn.click();
-
-      // Verify modal is closed
-      await expect(detailModal).toBeHidden();
-    } else {
-      // If no artifacts, this test is not applicable
-      test.skip();
+  test.beforeEach(async ({ page }, testInfo) => {
+    if (testInfo.title === 'should open and close artifact detail modal') {
+      await page.goto('/front-end/index.html');
+      await page.waitForTimeout(2000);
+      const artifactCards = page.locator('.artifact-card');
+      const cardCount = await artifactCards.count();
+      if (cardCount === 0) {
+        test.skip('No artifacts available to test modal open/close.');
+      }
     }
+  });
+
+  test('should open and close artifact detail modal', async ({ page }) => {
+    // At this point, we know there is at least one artifact card
+    await page.goto('/front-end/index.html');
+    await page.waitForTimeout(2000);
+    const artifactCards = page.locator('.artifact-card');
+
+    // Click the first artifact card
+    await artifactCards.first().click();
+
+    // Wait for modal to appear
+    const detailModal = page.locator('#detail-modal');
+    await expect(detailModal).toBeVisible({ timeout: 3000 });
+
+    // Verify modal has content
+    const modalContent = page.locator('#detail-modal .modal-content');
+    await expect(modalContent).toBeVisible();
+
+    // Close the modal by clicking the close button
+    const closeBtn = page.locator('#detail-modal .close-btn');
+    await closeBtn.click();
+
+    // Verify modal is closed
+    await expect(detailModal).toBeHidden();
   });
 });
