@@ -42,7 +42,7 @@ def test_register_requires_admin(auth_service):
 
 
 def test_admin_register_and_logout_revokes_token(auth_service):
-    admin_token, _ = auth_service.login("ece30861defaultadminuser", "correcthorsebatterystaple123(!__+@**(A;DROP TABLE packages")
+    admin_token, _ = auth_service.login("ece30861defaultadminuser", "correcthorsebatterystaple123(!__+@**(A'\"`;DROP TABLE artifacts;")
 
     new_user = auth_service.register_user(
         admin_token=admin_token,
