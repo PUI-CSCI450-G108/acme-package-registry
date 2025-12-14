@@ -12,6 +12,8 @@ import shutil
 from io import BytesIO
 import zipfile
 from huggingface_hub import snapshot_download
+from huggingface_hub.errors import GatedRepoError
+from httpx import HTTPStatusError
 import fnmatch
 from botocore.exceptions import ClientError
 from typing import Dict, Any, Optional, Iterable, List, Union
@@ -189,6 +191,20 @@ def upload_hf_files_to_s3(artifact_id: str, hf_url: str) -> Optional[str]:
         )
         return None
 
+    # Always create a simple placeholder zip first so downloads work even if snapshot fails
+    try:
+        store_simple_zip(artifact_id, hf_url)
+    except Exception:
+        log_event(
+            "warning",
+            f"Failed to store simple placeholder zip for {artifact_id}",
+            event=None,
+            context=None,
+            model_id=artifact_id,
+            error_code="simple_zip_store_failed",
+            exc_info=True,
+        )
+
     try:
         if not hf_url.startswith("https://huggingface.co/"):
             log_event(
@@ -223,13 +239,35 @@ def upload_hf_files_to_s3(artifact_id: str, hf_url: str) -> Optional[str]:
         os.environ.setdefault("HF_HOME", "/tmp/hf-home")
         os.environ.setdefault("HUGGINGFACE_HUB_CACHE", "/tmp/hf-cache")
 
-        local_dir = snapshot_download(
-            repo_id=repo_id,
-            repo_type=repo_type,
-            token=hf_token,
-            allow_patterns=allow_patterns,
-            ignore_patterns=ignore_patterns,
-        )
+        try:
+            local_dir = snapshot_download(
+                repo_id=repo_id,
+                repo_type=repo_type,
+                token=hf_token,
+                allow_patterns=allow_patterns,
+                ignore_patterns=ignore_patterns,
+            )
+        except GatedRepoError as e:
+            log_event(
+                "warning",
+                f"Gated HF repo {repo_id}; aborting snapshot after first failure",
+                event=None,
+                context=None,
+                error_code="gated_repo",
+            )
+            return None
+        except HTTPStatusError as e:
+            status = getattr(e, "response", None).status_code if hasattr(e, "response") else None
+            if status == 403:
+                log_event(
+                    "warning",
+                    f"HTTP 403 on HF repo {repo_id}; aborting snapshot",
+                    event=None,
+                    context=None,
+                    error_code="gated_repo",
+                )
+                return None
+            raise
 
         zip_key = f"artifacts/{artifact_id}/data.zip"
         buffer = BytesIO()
@@ -252,7 +290,7 @@ def upload_hf_files_to_s3(artifact_id: str, hf_url: str) -> Optional[str]:
             )
             log_event(
                 "info",
-                f"Uploaded data.zip to s3://{BUCKET_NAME}/{zip_key}",
+                f"Uploaded snapshot data.zip to s3://{BUCKET_NAME}/{zip_key} (overwrote placeholder)",
                 event=None,
                 context=None,
                 model_id=artifact_id,
@@ -277,18 +315,6 @@ def upload_hf_files_to_s3(artifact_id: str, hf_url: str) -> Optional[str]:
             error_code="hf_snapshot_zip_upload_error",
             exc_info=True,
         )
-        try:
-            store_simple_zip(artifact_id, hf_url)
-        except Exception:
-            log_event(
-                "error",
-                f"Failed to create/store simple data.zip for {artifact_id}",
-                event=None,
-                context=None,
-                model_id=artifact_id,
-                error_code="simple_zip_store_failed",
-                exc_info=True,
-            )
         return None
 
 def store_simple_zip(artifact_id: str, hf_url: str) -> None:
