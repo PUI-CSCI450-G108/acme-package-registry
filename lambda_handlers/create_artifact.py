@@ -206,16 +206,26 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
                     "error": f"Error evaluating artifact: {str(e)}"
                 })
             try:
-                # Upload files from HF model repo to S3 for future use
+                # Upload essential HF files to S3 (if enabled)
                 if os.environ.get('ENABLE_FULL_MODEL_DOWNLOAD', 'true').lower() == 'true':
-                    upload_hf_files_to_s3(artifact_id, url)
-                    log_event(
-                        "info",
-                        f"Uploaded HF files for artifact {artifact_id}",
-                        event=event,
-                        context=context,
-                        model_id=artifact_id,
-                    )
+                    uploaded_key = upload_hf_files_to_s3(artifact_id, url)
+                    if uploaded_key:
+                        log_event(
+                            "info",
+                            f"Uploaded HF files to s3://{os.environ.get('ARTIFACTS_BUCKET')}/{uploaded_key}",
+                            event=event,
+                            context=context,
+                            model_id=artifact_id,
+                        )
+                    else:
+                        log_event(
+                            "warning",
+                            "Skipped HF snapshot upload (gated or not accessible); placeholder data.zip stored",
+                            event=event,
+                            context=context,
+                            model_id=artifact_id,
+                            error_code="hf_snapshot_skipped",
+                        )
             except Exception as e:
                 latency = perf_counter() - start_time
                 log_event(
