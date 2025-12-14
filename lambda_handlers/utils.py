@@ -154,15 +154,23 @@ MIN_NET_SCORE_THRESHOLD = float(os.getenv("MIN_NET_SCORE", "0.5"))
 # Files essential to clone/use a model locally
 ESSENTIAL_PATTERNS: List[str] = [
     "*.json",
-    "*.bin",
-    "*.safetensors",
     "tokenizer.json",
     "config.json",
-    "pytorch_model.bin",
-    "model.safetensors",
     "vocab.txt",
     "merges.txt",
     "special_tokens_map.json",
+    "generation_config.json",
+    "preprocessor_config.json",
+    "tokenizer.model",
+]
+
+# Explicitly mark common weight file patterns (excluded)
+WEIGHT_PATTERNS: List[str] = [
+    "*.bin",
+    "*.safetensors",
+    "pytorch_model.bin",
+    "model.safetensors",
+    "*.onnx",
 ]
 
 def is_essential_file(relative_path: str) -> bool:
@@ -234,10 +242,17 @@ def upload_hf_files_to_s3(artifact_id: str, hf_url: str) -> Optional[str]:
 
         # Constrain snapshot to essential files to reduce /tmp usage
         allow_patterns = ESSENTIAL_PATTERNS
-        ignore_patterns = ["*.md", "*.txt", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.svg", "*.psd", "*.pptx", "*.xlsx", "*.csv", "*.parquet", "*.tar", "*.zip", "*.7z", "*.rar"]
+        ignore_patterns = [
+            "*.md", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.svg",
+            "*.psd", "*.pptx", "*.xlsx", "*.csv", "*.parquet", "*.tar", "*.zip", "*.7z", "*.rar",
+            *WEIGHT_PATTERNS,
+        ]
+        # Speed + reliability tweaks
         # Force cache under /tmp to avoid writing elsewhere
         os.environ.setdefault("HF_HOME", "/tmp/hf-home")
         os.environ.setdefault("HUGGINGFACE_HUB_CACHE", "/tmp/hf-cache")
+        # Enable faster transfer backend when available
+        os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "1")
 
         try:
             local_dir = snapshot_download(
@@ -246,6 +261,9 @@ def upload_hf_files_to_s3(artifact_id: str, hf_url: str) -> Optional[str]:
                 token=hf_token,
                 allow_patterns=allow_patterns,
                 ignore_patterns=ignore_patterns,
+                resume_download=True,
+                max_workers=4,
+                tqdm_class=None,
             )
         except GatedRepoError as e:
             log_event(
