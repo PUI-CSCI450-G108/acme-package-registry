@@ -510,6 +510,19 @@ async function submitUserRegistration() {
         return;
     }
 
+    const token = getAuthToken();
+    if (!token) {
+        errorDiv.textContent = 'You must be logged in to register users.';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    if (!isCurrentUserAdmin()) {
+        errorDiv.textContent = 'Admin privileges are required to register users.';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
     submitBtn.disabled = true;
     submitBtn.textContent = 'Registering...';
 
@@ -528,17 +541,25 @@ async function submitUserRegistration() {
             })
         });
 
-        let data = null;
-        if (response.ok) {
-            data = await response.json();
-        } else {
-            // Try to parse error message as JSON, but fall back to status if not JSON
+        const responseText = await response.text();
+        if (!response.ok) {
+            let errorMessage = `HTTP ${response.status}: ${response.statusText || 'Request failed'}`;
             try {
-                const errorData = await response.json();
-                throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
-            } catch (e) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                const errorData = JSON.parse(responseText || '{}');
+                errorMessage = errorData.error || errorMessage;
+            } catch (parseError) {
+                if (responseText) {
+                    errorMessage = responseText;
+                }
             }
+            throw new Error(errorMessage);
+        }
+
+        let data = {};
+        try {
+            data = responseText ? JSON.parse(responseText) : {};
+        } catch (parseError) {
+            data = {};
         }
         document.getElementById('register-username').value = '';
         document.getElementById('register-password').value = '';
@@ -548,7 +569,8 @@ async function submitUserRegistration() {
         document.getElementById('register-can-download').checked = false;
         document.getElementById('register-is-admin').checked = false;
 
-        successDiv.textContent = `User ${escapeHtml(data.username)} registered successfully.`;
+        const displayName = data.username || username;
+        successDiv.textContent = `User ${escapeHtml(displayName)} registered successfully.`;
         successDiv.style.display = 'block';
         errorDiv.style.display = 'none';
     } catch (error) {
