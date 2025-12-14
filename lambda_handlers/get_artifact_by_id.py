@@ -111,7 +111,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         response_data = {
             "metadata": artifact_data.get("metadata", {}),
-            "data": {"url": artifact_data.get("url", "")},
+            "data": artifact_data.get("data", {}),
         }
 
         latency = perf_counter() - start_time
