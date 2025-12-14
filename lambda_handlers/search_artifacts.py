@@ -102,12 +102,20 @@ def _check_regex_complexity(pattern: str) -> None:
     # Check 5: Detect excessive nesting depth
     max_depth = 0
     current_depth = 0
-    for char in pattern:
+    i = 0
+    length = len(pattern)
+    while i < length:
+        char = pattern[i]
+        if char == '\\':
+            # Skip the next character, as it is escaped
+            i += 2
+            continue
         if char == '(':
             current_depth += 1
             max_depth = max(max_depth, current_depth)
         elif char == ')':
             current_depth -= 1
+        i += 1
 
     if max_depth > MAX_NESTING_DEPTH:
         raise UnsafeRegexError(
