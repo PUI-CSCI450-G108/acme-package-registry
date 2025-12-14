@@ -1,5 +1,5 @@
 import json
-from typing import Optional, List
+from typing import Optional
 
 import requests
 
@@ -7,17 +7,14 @@ from api_config import API_BASE_URL
 
 
 def test_search_endpoint(
-    name_regex: str,
+    regex: str,
     *,
-    version: Optional[str] = None,
-    types: Optional[List[str]] = None,
-    id_regex: Optional[str] = None,
     api_base_url: str = API_BASE_URL,
     auth_token: Optional[str] = None,
 ) -> None:
-    """Test the POST /artifact/search endpoint."""
+    """Test the POST /artifact/byRegEx endpoint."""
 
-    endpoint = f"{api_base_url}/artifact/search"
+    endpoint = f"{api_base_url}/artifact/byRegEx"
 
     headers = {"Content-Type": "application/json"}
     # Use whichever header your gateway expects; keeping both patterns you've used
@@ -26,17 +23,11 @@ def test_search_endpoint(
         headers["X-Authorization"] = auth_token
 
     payload = {
-        "name_regex": name_regex,
-        "version": version,
-        "types": types,
-        "id_regex": id_regex,
+        "regex": regex,
     }
 
-    # Remove keys that are None to keep payload tidy
-    payload = {k: v for k, v in payload.items() if v is not None}
-
     print(f"\n{'=' * 60}")
-    print("Testing: POST /artifact/search")
+    print("Testing: POST /artifact/byRegEx")
     print(f"Endpoint: {endpoint}")
     print("Payload:")
     print(json.dumps(payload, indent=2))
@@ -72,15 +63,15 @@ def test_search_endpoint(
                 for i, item in enumerate(response_json[:10], start=1):
                     mid = (item.get("id") if isinstance(item, dict) else None)
                     mname = (item.get("name") if isinstance(item, dict) else None)
-                    mver = (item.get("version") if isinstance(item, dict) else None)
                     mtype = (item.get("type") if isinstance(item, dict) else None)
-                    print(f"   {i:>2}. id={mid} | name={mname} | version={mver} | type={mtype}")
+                    print(f"   {i:>2}. id={mid} | name={mname} | type={mtype}")
                 if len(response_json) > 10:
                     print(f"  ...and {len(response_json) - 10} more")
         elif response.status_code == 404:
-            print("\n✗ INFO: No matching artifacts found")
+            print("\n✗ INFO: No artifact found under this regex")
         elif response.status_code == 400:
-            print("\n✗ ERROR: Bad request - check your regex/types/version inputs")
+            print("\n✗ ERROR: Bad request - check your regex pattern")
+            print("  Note: Catastrophic backtracking patterns like (a|aa)*$ will timeout")
         else:
             print(f"\n✗ ERROR: Unexpected status code {response.status_code}")
 

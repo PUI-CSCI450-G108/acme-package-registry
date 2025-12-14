@@ -1,171 +1,196 @@
 """
-Lambda handler for POST /artifact/search
+Lambda handler for POST /artifact/byRegEx
 
-Searches for artifacts using regex (name and/or id) and semantic version constraints.
-Returns matching artifact *metadata* entries (id, name, version, type).
+Searches for artifacts using regex over artifact names and READMEs.
+Returns matching artifact *metadata* entries (id, name, type).
 """
 
 import json
 import re
 from time import perf_counter
-from typing import Any, Dict, Iterable, List, Optional, Sequence
-
-from packaging import version as pkg_version
-from packaging.specifiers import InvalidSpecifier, SpecifierSet
-from packaging.version import InvalidVersion
+from typing import Any, Dict, Iterable, List
 
 from lambda_handlers.utils import create_response, list_all_artifacts_from_s3, log_event
 
 
-# -------------------------
-# Inlined semver + search helpers
-# -------------------------
-
-def _build_specifier(range_expression: str) -> Optional[SpecifierSet]:
-    expr = (range_expression or "").strip()
-    if not expr or expr == "*":
-        return None
-    try:
-        if expr.startswith("^"):
-            spec = _caret_to_specifier(expr[1:].strip())
-        elif expr.startswith("~"):
-            spec = _tilde_to_specifier(expr[1:].strip())
-        elif " - " in expr:
-            lo, hi = (p.strip() for p in expr.split(" - ", 1))
-            if not lo or not hi:
-                raise ValueError("Invalid range expression")
-            spec = f">={lo},<={hi}"
-        else:
-            spec = f"=={expr}"
-        return SpecifierSet(spec)
-    except (InvalidSpecifier, InvalidVersion, ValueError):
-        return None
+# Regex complexity limits
+MAX_PATTERN_LENGTH = 200
+MAX_QUANTIFIER_VALUE = 1000
+MAX_NESTING_DEPTH = 3
 
 
-def _caret_to_specifier(base_version: str) -> str:
-    base = pkg_version.Version(base_version)
-    release = list(base.release)
-    if not release:
-        raise InvalidVersion(f"Invalid version: {base_version}")
-    first_non_zero = 0
-    for i, v in enumerate(release):
-        if v != 0:
-            first_non_zero = i
-            break
-    else:
-        # all zeros -> exact match only
-        return f"=={base_version}"
-    upper = release[: first_non_zero + 1]
-    upper[first_non_zero] += 1
-    upper_bound = ".".join(str(p) for p in upper)
-    return f">={base_version},<{upper_bound}"
+class UnsafeRegexError(Exception):
+    """Raised when regex pattern is deemed unsafe due to complexity."""
+    pass
 
 
-def _tilde_to_specifier(base_version: str) -> str:
-    base = pkg_version.Version(base_version)
-    release = list(base.release)
-    if not release:
-        raise InvalidVersion(f"Invalid version: {base_version}")
-    if len(release) == 1:
-        upper = [release[0] + 1]
-    else:
-        upper = release[:2]
-        upper[1] += 1
-    upper_bound = ".".join(str(p) for p in upper)
-    return f">={base_version},<{upper_bound}"
+def _check_regex_complexity(pattern: str) -> None:
+    """
+    Check if a regex pattern is safe to execute.
+
+    Detects patterns that could cause catastrophic backtracking or excessive
+    resource consumption. This is necessary because signal-based timeouts
+    don't work in AWS Lambda.
+
+    Args:
+        pattern: Regular expression pattern string
+
+    Raises:
+        UnsafeRegexError: If pattern is deemed unsafe
+
+    Checks performed:
+    1. Pattern length limit
+    2. Nested quantifiers (e.g., (a+)+, (a*)*)
+    3. Large quantifier ranges (e.g., a{1,99999})
+    4. Overlapping alternations with quantifiers (e.g., (a|aa)*)
+    5. Excessive nesting depth
+    """
+    # Check 1: Pattern length
+    if len(pattern) > MAX_PATTERN_LENGTH:
+        raise UnsafeRegexError(
+            f"Pattern too long ({len(pattern)} chars, max {MAX_PATTERN_LENGTH})"
+        )
+
+    # Check 2: Detect nested quantifiers - common cause of catastrophic backtracking
+    # Patterns like (a+)+, (a*)*, (a+)*, ((a)+)+, etc.
+    nested_quantifier_patterns = [
+        r'\([^)]*[*+?]\)[*+?{]',  # (...)+ or (...)* or (...)?
+        r'\([^)]*\{[^}]+\}\)[*+?{]',  # (...{n,m})+ patterns
+        r'\([^)]*[*+?][^)]*\)[*+?{]',  # Multiple quantifiers in group
+    ]
+
+    for check_pattern in nested_quantifier_patterns:
+        if re.search(check_pattern, pattern):
+            raise UnsafeRegexError(
+                "Nested quantifiers detected - potential catastrophic backtracking"
+            )
+
+    # Check 3: Detect large quantifier ranges
+    # Patterns like a{1,99999} or a{9999,}
+    quantifier_ranges = re.findall(r'\{(\d+)(?:,(\d*))?\}', pattern)
+    for min_val, max_val in quantifier_ranges:
+        min_int = int(min_val) if min_val else 0
+        max_int = int(max_val) if max_val else min_int
+
+        if min_int > MAX_QUANTIFIER_VALUE:
+            raise UnsafeRegexError(
+                f"Quantifier minimum too large ({min_int}, max {MAX_QUANTIFIER_VALUE})"
+            )
+        if max_val and max_int > MAX_QUANTIFIER_VALUE:
+            raise UnsafeRegexError(
+                f"Quantifier maximum too large ({max_int}, max {MAX_QUANTIFIER_VALUE})"
+            )
+
+    # Check 4: Detect overlapping alternations with quantifiers
+    # Patterns like (a|aa)*, (ab|abc)+, etc.
+    # This is a simplified check - looks for alternation groups followed by quantifiers
+    if re.search(r'\([^)]*\|[^)]*\)[*+{]', pattern):
+        # Further check if alternations might overlap
+        # Extract the alternation group
+        alt_groups = re.findall(r'\(([^)]*\|[^)]*)\)[*+{]', pattern)
+        for group in alt_groups:
+            alternatives = group.split('|')
+            # Check if any alternative is a prefix of another
+            for i, alt1 in enumerate(alternatives):
+                for alt2 in alternatives[i+1:]:
+                    if alt1.startswith(alt2) or alt2.startswith(alt1):
+                        raise UnsafeRegexError(
+                            "Overlapping alternations with quantifiers detected - "
+                            "potential catastrophic backtracking"
+                        )
+
+    # Check 5: Detect excessive nesting depth
+    max_depth = 0
+    current_depth = 0
+    for char in pattern:
+        if char == '(':
+            current_depth += 1
+            max_depth = max(max_depth, current_depth)
+        elif char == ')':
+            current_depth -= 1
+
+    if max_depth > MAX_NESTING_DEPTH:
+        raise UnsafeRegexError(
+            f"Pattern nesting too deep ({max_depth} levels, max {MAX_NESTING_DEPTH})"
+        )
 
 
-def _version_matches(ver: str, range_expression: Optional[str]) -> bool:
-    if not range_expression or range_expression == "*":
-        return True
-    spec = _build_specifier(range_expression)
-    if spec is None:
-        # Fallback to literal equality on invalid range expressions
-        return ver == (range_expression or "").strip()
-    try:
-        pv = pkg_version.Version(ver)
-    except InvalidVersion:
-        # If stored version isn't parseable, fall back to literal equality
-        return ver == (range_expression or "").strip()
-    return pv in spec
-
-
-def _search_artifacts_with_regex_and_version(
+def _search_artifacts_by_regex(
     artifacts: Iterable[Dict[str, Any]],
-    *,
-    name_regex: str,
-    version_expr: Optional[str] = None,
-    types: Optional[Sequence[str]] = None,
-    id_regex: Optional[str] = None,
-    flags: int = re.IGNORECASE,
+    regex_pattern: str,
 ) -> List[Dict[str, Any]]:
     """
-    Core search: regex over name/id + semver constraints over version.
-    Returns a sorted list of metadata dicts (by name, then version).
+    Search artifacts using regex over artifact names.
+
+    Note: The spec mentions searching READMEs as well, but README data
+    is not currently stored in artifacts. This implementation searches
+    only artifact names.
+
+    Args:
+        artifacts: Iterable of artifact dictionaries
+        regex_pattern: Regular expression pattern to match
+
+    Returns:
+        List of matching artifact metadata dicts, sorted by name
+
+    Raises:
+        ValueError: If regex pattern is invalid
+        UnsafeRegexError: If regex pattern is too complex/dangerous
     """
+    # Check complexity before compiling
+    _check_regex_complexity(regex_pattern)
+
     try:
-        name_pat = re.compile(name_regex, flags)
+        pattern = re.compile(regex_pattern, re.IGNORECASE)
     except re.error as e:
-        raise ValueError(f"Invalid name_regex: {e}")
+        raise ValueError(f"Invalid regex pattern: {e}")
 
-    id_pat = None
-    if id_regex:
-        try:
-            id_pat = re.compile(id_regex, flags)
-        except re.error as e:
-            raise ValueError(f"Invalid id_regex: {e}")
-
-    allow_types = set(t.strip() for t in (types or [])) or None
     results_by_id: Dict[str, Dict[str, Any]] = {}
 
     for artifact in artifacts:
         md = artifact.get("metadata", {}) or {}
-        aid = str(md.get("id", "") or "")
-        aname = str(md.get("name", "") or "")
-        aver = str(md.get("version", "") or "")
-        atype = md.get("type")
+        artifact_id = str(md.get("id", "") or "")
+        artifact_name = str(md.get("name", "") or "")
+        artifact_type = md.get("type")
 
-        if not aname or not aid:
-            continue
-        if allow_types is not None and atype not in allow_types:
-            continue
-        if not name_pat.search(aname):
-            continue
-        if id_pat and not id_pat.search(aid):
-            continue
-        if not _version_matches(aver, version_expr):
+        if not artifact_name or not artifact_id:
             continue
 
-        results_by_id[aid] = md
+        # Search artifact name
+        if pattern.search(artifact_name):
+            results_by_id[artifact_id] = {
+                "name": artifact_name,
+                "id": artifact_id,
+                "type": artifact_type
+            }
 
     return sorted(
         results_by_id.values(),
-        key=lambda m: (str(m.get("name", "")).lower(), str(m.get("version", ""))),
+        key=lambda m: str(m.get("name", "")).lower()
     )
 
 
-# -------------------------
-# Lambda handler
-# -------------------------
-
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
-    Lambda handler for POST /artifact/search
+    Lambda handler for POST /artifact/byRegEx
 
     Request body (JSON):
     {
-      "name_regex": "<required regex>",
-      "version": "<optional version spec>",
-      "types": ["model","dataset","code"],     # optional
-      "id_regex": "<optional regex>"
+      "regex": "<required regex pattern>"
     }
+
+    Response: Array of matching artifact metadata
+    [
+      {"name": "...", "id": "...", "type": "..."},
+      ...
+    ]
     """
     start_time = perf_counter()
 
     try:
         log_event(
             "info",
-            f"search_artifacts invoked: {json.dumps(event)}",
+            f"search_artifacts (byRegEx) invoked: {json.dumps(event)}",
             event=event,
             context=context,
         )
@@ -198,60 +223,52 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 status=400,
                 error_code="invalid_payload",
             )
-            return create_response(400, {"error": "Invalid JSON body."})
+            return create_response(400, {
+                "error": "There is missing field(s) in the artifact_regex or it is formed improperly, or is invalid"
+            })
 
-        name_regex = body.get("name_regex")
-        if not isinstance(name_regex, str) or not name_regex.strip():
-            # Match your existing wording style for 400s
+        # Validate regex field
+        regex_pattern = body.get("regex")
+        if not isinstance(regex_pattern, str) or not regex_pattern.strip():
             latency = perf_counter() - start_time
             log_event(
                 "warning",
-                "Missing or invalid name_regex",
+                "Missing or invalid regex field",
                 event=event,
                 context=context,
                 latency=latency,
                 status=400,
-                error_code="invalid_name_regex",
+                error_code="invalid_regex",
             )
             return create_response(400, {
-                "error": "There is missing field(s) in the artifact_query or it is formed improperly, or is invalid."
+                "error": "There is missing field(s) in the artifact_regex or it is formed improperly, or is invalid"
             })
-
-        version_expr = body.get("version")
-        id_regex = body.get("id_regex")
-        types = body.get("types")
-
-        # Validate 'types' if present
-        if types is not None:
-            if not isinstance(types, list) or not all(isinstance(t, str) and t for t in types):
-                latency = perf_counter() - start_time
-                log_event(
-                    "warning",
-                    "Invalid artifact types filter for search",
-                    event=event,
-                    context=context,
-                    latency=latency,
-                    status=400,
-                    error_code="invalid_types_filter",
-                )
-                return create_response(400, {
-                    "error": "There is missing field(s) in the artifact_query or it is formed improperly, or is invalid."
-                })
 
         # Load artifacts from S3
         artifacts_map = list_all_artifacts_from_s3()
 
-        # Execute search
+        # Execute search with complexity protection
         try:
-            results = _search_artifacts_with_regex_and_version(
+            results = _search_artifacts_by_regex(
                 artifacts_map.values(),
-                name_regex=name_regex,
-                version_expr=version_expr,
-                types=types,
-                id_regex=id_regex,
+                regex_pattern=regex_pattern,
             )
+        except UnsafeRegexError as e:
+            latency = perf_counter() - start_time
+            log_event(
+                "warning",
+                f"Unsafe regex pattern rejected: {e}",
+                event=event,
+                context=context,
+                latency=latency,
+                status=400,
+                error_code="unsafe_regex",
+            )
+            return create_response(400, {
+                "error": "There is missing field(s) in the artifact_regex or it is formed improperly, or is invalid"
+            })
         except ValueError as e:
-            # invalid regex -> 400
+            # Invalid regex pattern
             latency = perf_counter() - start_time
             log_event(
                 "warning",
@@ -262,7 +279,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 status=400,
                 error_code="invalid_regex",
             )
-            return create_response(400, {"error": str(e)})
+            return create_response(400, {
+                "error": "There is missing field(s) in the artifact_regex or it is formed improperly, or is invalid"
+            })
 
         if not results:
             latency = perf_counter() - start_time
@@ -275,12 +294,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 status=404,
                 error_code="artifact_not_found",
             )
-            return create_response(404, {"error": "No matching artifacts found."})
+            return create_response(404, {
+                "error": "No artifact found under this regex."
+            })
 
         latency = perf_counter() - start_time
         log_event(
             "info",
-            f"Found {len(results)} matching artifact(s) for regex '{name_regex}'",
+            f"Found {len(results)} matching artifact(s) for regex '{regex_pattern}'",
             event=event,
             context=context,
             latency=latency,
