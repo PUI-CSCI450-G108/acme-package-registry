@@ -589,6 +589,9 @@ Resources:
       FunctionName: acme-registry-download
       Timeout: 10
       MemorySize: 128
+      Environment:
+        Variables:
+          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
       Events:
         DownloadApi:
           Type: HttpApi
