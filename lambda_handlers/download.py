@@ -51,7 +51,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
 
     if not BUCKET_NAME or not s3_client:
         log_event("error", "S3 not configured for download", event=event, context=context)
-        return create_response(501, {"error": "Download storage not configured"})
+        return create_response(501, {
+            "error": "Download storage not configured",
+            "detail": "Missing ARTIFACTS_BUCKET or S3 client"
+        })
 
     # Expected path for the zip bundle
     key = f"artifacts/{artifact_id}/data.zip"
@@ -59,15 +62,33 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
     try:
         obj = s3_client.get_object(Bucket=BUCKET_NAME, Key=key)
         data = obj["Body"].read()
-    except ClientError as e:
-        code = e.response.get("Error", {}).get("Code")
+    except Exception as e:
+        # Try to extract structured info if it's a botocore ClientError
+        code = None
+        message = None
+        try:
+            code = getattr(e, "response", {}).get("Error", {}).get("Code")
+            message = getattr(e, "response", {}).get("Error", {}).get("Message")
+        except Exception:
+            pass
+
         if code in ("404", "NoSuchKey"):
             return create_response(404, {"error": "File not found: data.zip"})
-        log_event("error", f"get_object failed: {e}", event=event, context=context, model_id=artifact_id)
-        return create_response(500, {"error": "Storage error"})
-    except Exception as e:
-        log_event("error", f"Unexpected read error: {e}", event=event, context=context, model_id=artifact_id)
-        return create_response(500, {"error": "Failed to read file"})
+
+        log_event(
+            "error",
+            f"S3 get_object error code={code} msg={message} exc={e}",
+            event=event,
+            context=context,
+            model_id=artifact_id,
+        )
+        return create_response(500, {
+            "error": "Storage error",
+            "code": code or "Unknown",
+            "message": message or str(e),
+            "bucket": BUCKET_NAME,
+            "key": key,
+        })
 
     b64 = base64.b64encode(data).decode("utf-8")
 

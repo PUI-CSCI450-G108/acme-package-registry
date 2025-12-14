@@ -8,6 +8,7 @@ import json
 from time import perf_counter
 import logging
 import os
+import boto3, botocore
 from typing import Dict, Any
 from huggingface_hub import snapshot_download
 
@@ -246,23 +247,54 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
 
         # Also create a small ZIP bundle with a data.txt containing the artifact_id
         try:
-            if s3_client and BUCKET_NAME:
+            zip_key = f"artifacts/{artifact_id}/data.zip"
+            if not BUCKET_NAME:
+                log_event(
+                    "warning",
+                    "ARTIFACTS_BUCKET env var not set; skipping data.zip storage",
+                    event=event,
+                    context=context,
+                    model_id=artifact_id,
+                    error_code="missing_bucket_env",
+                )
+            elif not s3_client:
+                log_event(
+                    "warning",
+                    "S3 client not initialized; skipping data.zip storage",
+                    event=event,
+                    context=context,
+                    model_id=artifact_id,
+                    error_code="missing_s3_client",
+                )
+            else:
+                log_event(
+                    "info",
+                    f"Preparing data.zip for {artifact_id} to store at s3://{BUCKET_NAME}/{zip_key}",
+                    event=event,
+                    context=context,
+                    model_id=artifact_id,
+                )
                 buffer = BytesIO()
                 with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
                     zf.writestr("data.txt", f"artifact_id={artifact_id}\n")
                 buffer.seek(0)
-                zip_key = f"artifacts/{artifact_id}/data.zip"
                 s3_client.put_object(
                     Bucket=BUCKET_NAME,
                     Key=zip_key,
                     Body=buffer.read(),
                     ContentType="application/zip"
                 )
-                log_event("info", f"Stored data.zip for {artifact_id}", event=event, context=context, model_id=artifact_id)
+                log_event(
+                    "info",
+                    f"Stored data.zip at s3://{BUCKET_NAME}/{zip_key}",
+                    event=event,
+                    context=context,
+                    model_id=artifact_id,
+                )
         except Exception as e:
             log_event(
                 "warning",
-                f"Failed to create/store data.zip for {artifact_id}: {e}",
+                f"Failed to create/store data.zip for {artifact_id} at s3://{BUCKET_NAME}/{zip_key}: {e}",
                 event=event,
                 context=context,
                 model_id=artifact_id,
