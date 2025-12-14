@@ -19,7 +19,7 @@ from lambda_handlers.utils import (
     MIN_NET_SCORE_THRESHOLD,
     log_event,
     is_valid_artifact_url,
-    upload_essential_hf_files_to_s3,
+    upload_hf_files_to_s3,
     s3_client,
     BUCKET_NAME,
 )
@@ -209,6 +209,33 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
                 return create_response(500, {
                     "error": f"Error evaluating artifact: {str(e)}"
                 })
+            try:
+                # Upload essential files from HF model repo to S3 for future use
+                if os.environ.get('ENABLE_FULL_MODEL_DOWNLOAD', 'true').lower() == 'true':
+                    upload_hf_files_to_s3(artifact_id, url)
+                    log_event(
+                        "info",
+                        f"Uploaded essential HF files for artifact {artifact_id}",
+                        event=event,
+                        context=context,
+                        model_id=artifact_id,
+                    )
+            except Exception as e:
+                latency = perf_counter() - start_time
+                log_event(
+                    "error",
+                    f"Error uploading HF files: {e}",
+                    event=event,
+                    context=context,
+                    model_id=artifact_id,
+                    latency=latency,
+                    status=500,
+                    error_code="hf_files_upload_failed",
+                    exc_info=True,
+                )
+                return create_response(500, {
+                    "error": f"Error uploading essential HF files: {str(e)}"
+                })
         else:
             # For dataset/code, use provided name or extract from URL
             if provided_name:
@@ -310,71 +337,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
             latency=latency,
             status=201,
         )
-
-        # Optional: Build data.zip from HuggingFace snapshot if enabled and applicable
-        enable_full_download = os.environ.get("ENABLE_FULL_MODEL_DOWNLOAD", "false").lower() == "true"
-        if enable_full_download and url.startswith("https://huggingface.co/"):
-            try:
-                repo_id = url.replace("https://huggingface.co/", "").replace("https://huggingface.co/datasets/", "")
-                if "/tree/" in repo_id:
-                    repo_id = repo_id.split("/tree/")[0]
-
-                repo_type = "dataset" if artifact_type == "dataset" else "model"
-                hf_token = os.environ.get("HF_TOKEN")
-                log_event(
-                    "info",
-                    f"Starting HF snapshot download for {repo_type}:{repo_id} (auth={'yes' if hf_token else 'no'})",
-                    event=event,
-                    context=context,
-                    model_id=artifact_id,
-                )
-
-                local_dir = snapshot_download(
-                    repo_id=repo_id,
-                    repo_type=repo_type,
-                    token=hf_token
-                )
-
-                # Zip entire snapshot directory and upload to S3 as data.zip
-                zip_key = f"artifacts/{artifact_id}/data.zip"
-                if not BUCKET_NAME or not s3_client:
-                    raise RuntimeError("S3 not configured for data.zip upload")
-
-                buffer = BytesIO()
-                with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-                    for root, _, files in os.walk(local_dir):
-                        for fname in files:
-                            file_path = os.path.join(root, fname)
-                            arcname = os.path.relpath(file_path, start=local_dir)
-                            zf.write(file_path, arcname)
-                    # include marker file
-                    zf.writestr("data.txt", f"artifact_id={artifact_id}\nrepo_id={repo_id}\nrepo_type={repo_type}\n")
-                buffer.seek(0)
-
-                s3_client.put_object(
-                    Bucket=BUCKET_NAME,
-                    Key=zip_key,
-                    Body=buffer.read(),
-                    ContentType="application/zip"
-                )
-                log_event(
-                    "info",
-                    f"Uploaded HF snapshot zip to s3://{BUCKET_NAME}/{zip_key}",
-                    event=event,
-                    context=context,
-                    model_id=artifact_id,
-                )
-            except Exception as e:
-                log_event(
-                    "error",
-                    f"Failed to build/upload HF snapshot zip for artifact {artifact_id}: {e}",
-                    event=event,
-                    context=context,
-                    model_id=artifact_id,
-                    error_code="hf_snapshot_zip_upload_error",
-                    exc_info=True,
-                )
-                return create_response(500, {"error": f"Failed to build/upload HF snapshot zip: {str(e)}"})
 
         # Return artifact envelope
         return create_response(201, artifact_data)

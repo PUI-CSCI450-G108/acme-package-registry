@@ -8,6 +8,10 @@ import json
 import logging
 import re
 import boto3
+import shutil
+from io import BytesIO
+import zipfile
+from huggingface_hub import snapshot_download
 import fnmatch
 from botocore.exceptions import ClientError
 from typing import Dict, Any, Optional, Iterable, List, Union
@@ -141,19 +145,6 @@ def log_event(
 # S3 storage for artifacts
 BUCKET_NAME = os.getenv("ARTIFACTS_BUCKET")
 
-# Files that matter for running a HF model locally
-ESSENTIAL_PATTERNS = [
-    "config.json",
-    "tokenizer.json",
-    "tokenizer_config.json",
-    "special_tokens_map.json",
-    "generation_config.json",
-    "*.safetensors",
-    "pytorch_model*.bin",
-    "tf_model*.h5",
-    "flax_model*.msgpack",
-]
-
 s3_client = boto3.client("s3") if BUCKET_NAME else None
 
 MIN_NET_SCORE_THRESHOLD = float(os.getenv("MIN_NET_SCORE", "0.5"))
@@ -172,55 +163,104 @@ def is_essential_file(relative_path: str) -> bool:
             return True
     return False
 
-def upload_essential_hf_files_to_s3(
-    local_dir: str,
-    s3_prefix: str,
-) -> dict:
-    """
-    Walk a local Hugging Face snapshot directory, select only essential files,
-    upload them to S3, and return a simple manifest.
 
-    Example s3_prefix: "models/bert-base-uncased/v1"
+def upload_hf_files_to_s3(artifact_id: str, hf_url: str) -> Optional[str]:
+    """
+    Download a Hugging Face snapshot, zip it, upload to S3 as
+    artifacts/{artifact_id}/data.zip, and clean up local files and buffers.
+
+    Returns the S3 key on success, or None on failure.
     """
     if not s3_client or not BUCKET_NAME:
         log_event(
             "warning",
-            "S3 not configured, upload skipped",
+            "S3 not configured; cannot upload data.zip",
             event=None,
             context=None,
+            model_id=artifact_id,
+            error_code="s3_not_configured",
         )
-        return {}
-    uploaded_files = []
+        return None
 
-    for root, _, files in os.walk(local_dir):
-        for fname in files:
-            local_path = os.path.join(root, fname)
-            rel_path = os.path.relpath(local_path, local_dir)
+    try:
+        if not hf_url.startswith("https://huggingface.co/"):
+            log_event(
+                "warning",
+                "Non-HuggingFace URL provided to upload_file_to_s3; skipping",
+                event=None,
+                context=None,
+                model_id=artifact_id,
+                error_code="invalid_hf_url",
+            )
+            return None
 
-            if not is_essential_file(rel_path):
-                # Skip non essential files
-                continue
+        repo_id = hf_url.replace("https://huggingface.co/", "")
+        if "/tree/" in repo_id:
+            repo_id = repo_id.split("/tree/")[0]
 
-            s3_key = f"{s3_prefix}/{rel_path}"
+        repo_type = "dataset" if "/datasets/" in hf_url else "model"
+        hf_token = os.getenv("HF_TOKEN")
 
-            s3_client.upload_file(local_path, BUCKET_NAME, s3_key)
-            uploaded_files.append(rel_path)
+        log_event(
+            "info",
+            f"Downloading HF snapshot {repo_type}:{repo_id} (auth={'yes' if hf_token else 'no'})",
+            event=None,
+            context=None,
+            model_id=artifact_id,
+        )
 
-    manifest = {
-        "bucket": BUCKET_NAME,
-        "s3_prefix": s3_prefix,
-        "files": uploaded_files,
-    }
+        local_dir = snapshot_download(
+            repo_id=repo_id,
+            repo_type="model",
+            token=hf_token,
+        )
 
-    # Optional: store the manifest alongside the model
-    s3_client.put_object(
-        Bucket=BUCKET_NAME,
-        Key=f"{s3_prefix}/artifact_files_manifest.json",
-        Body=json.dumps(manifest, indent=2).encode("utf-8"),
-        ContentType="application/json",
-    )
+        zip_key = f"artifacts/{artifact_id}/data.zip"
+        buffer = BytesIO()
+        try:
+            with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+                for root, _, files in os.walk(local_dir):
+                    for fname in files:
+                        file_path = os.path.join(root, fname)
+                        arcname = os.path.relpath(file_path, start=local_dir)
+                        zf.write(file_path, arcname)
+                zf.writestr("data.txt", f"artifact_id={artifact_id}\nrepo_id={repo_id}\nrepo_type={repo_type}\n")
+            buffer.seek(0)
 
-    return manifest
+            s3_client.put_object(
+                Bucket=BUCKET_NAME,
+                Key=zip_key,
+                Body=buffer.read(),
+                ContentType="application/zip",
+            )
+            log_event(
+                "info",
+                f"Uploaded data.zip to s3://{BUCKET_NAME}/{zip_key}",
+                event=None,
+                context=None,
+                model_id=artifact_id,
+            )
+            return zip_key
+        finally:
+            try:
+                buffer.close()
+            except Exception:
+                pass
+            try:
+                shutil.rmtree(local_dir, ignore_errors=True)
+            except Exception:
+                pass
+    except Exception as e:
+        log_event(
+            "error",
+            f"upload_file_to_s3 failed for {artifact_id}: {e}",
+            event=None,
+            context=None,
+            model_id=artifact_id,
+            error_code="hf_snapshot_zip_upload_error",
+            exc_info=True,
+        )
+        return None
 
 def save_artifact_to_s3(artifact_id: str, artifact_data: dict) -> None:
     """Save artifact data to S3 as JSON."""
