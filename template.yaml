@@ -535,6 +535,30 @@ Resources:
             Path: /artifact/model/{id}/lineage
             Method: GET
 
+  # Lambda Function for POST /artifact/model/{id}/license-check
+  LicenseCheckFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.license_check.handler
+      Description: Check license compatibility between artifact and GitHub repo
+      FunctionName: acme-registry-license-check
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          ARTIFACTS_BUCKET: !Ref ArtifactsBucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ArtifactsBucket
+      Events:
+        LicenseCheckApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /artifact/model/{id}/license-check
+            Method: POST
+
   # Lambda Function for GET /tracks
   TracksFunction:
     Type: AWS::Serverless::Function
