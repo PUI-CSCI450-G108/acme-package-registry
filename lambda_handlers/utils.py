@@ -257,7 +257,7 @@ def upload_hf_files_to_s3(artifact_id: str, hf_url: str) -> Optional[str]:
             )
             return None
         except HTTPStatusError as e:
-            status = getattr(e, "response", None).status_code if hasattr(e, "response") else None
+            status = e.response.status_code
             if status == 403:
                 log_event(
                     "warning",
