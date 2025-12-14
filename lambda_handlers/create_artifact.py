@@ -20,13 +20,10 @@ from lambda_handlers.utils import (
     log_event,
     is_valid_artifact_url,
     upload_hf_files_to_s3,
-    s3_client,
-    BUCKET_NAME,
+    store_simple_zip,
 )
 from src.artifact_utils import generate_artifact_id
 from src.artifact_store import S3ArtifactStore
-from io import BytesIO
-import zipfile
 
 
 def handler(event: Dict[str, Any], context: Any) -> Dict:
@@ -210,12 +207,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
                     "error": f"Error evaluating artifact: {str(e)}"
                 })
             try:
-                # Upload essential files from HF model repo to S3 for future use
+                # Upload files from HF model repo to S3 for future use
                 if os.environ.get('ENABLE_FULL_MODEL_DOWNLOAD', 'true').lower() == 'true':
                     upload_hf_files_to_s3(artifact_id, url)
                     log_event(
                         "info",
-                        f"Uploaded essential HF files for artifact {artifact_id}",
+                        f"Uploaded HF files for artifact {artifact_id}",
                         event=event,
                         context=context,
                         model_id=artifact_id,
@@ -233,9 +230,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
                     error_code="hf_files_upload_failed",
                     exc_info=True,
                 )
-                return create_response(500, {
-                    "error": f"Error uploading essential HF files: {str(e)}"
-                })
+                log_event(
+                    "error",
+                    f"Failed to upload HF files for artifact {artifact_id}: {e}",
+                    event=event,
+                    context=context,
+                    model_id=artifact_id,
+                )
         else:
             # For dataset/code, use provided name or extract from URL
             if provided_name:
@@ -244,6 +245,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
                 name = url.split("/")[-1] if "/" in url else "unknown"
             rating = None
             base_model = None
+            store_simple_zip(artifact_id, url)
 
         # Create artifact data
         artifact_data = {
@@ -270,62 +272,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
             artifact_data["base_model"] = base_model
 
         save_artifact_to_s3(artifact_id, storage_data)
-
-        # Also create a small ZIP bundle with a data.txt containing the artifact_id
-        try:
-            zip_key = f"artifacts/{artifact_id}/data.zip"
-            if not BUCKET_NAME:
-                log_event(
-                    "warning",
-                    "ARTIFACTS_BUCKET env var not set; skipping data.zip storage",
-                    event=event,
-                    context=context,
-                    model_id=artifact_id,
-                    error_code="missing_bucket_env",
-                )
-            elif not s3_client:
-                log_event(
-                    "warning",
-                    "S3 client not initialized; skipping data.zip storage",
-                    event=event,
-                    context=context,
-                    model_id=artifact_id,
-                    error_code="missing_s3_client",
-                )
-            else:
-                log_event(
-                    "info",
-                    f"Preparing data.zip for {artifact_id} to store at s3://{BUCKET_NAME}/{zip_key}",
-                    event=event,
-                    context=context,
-                    model_id=artifact_id,
-                )
-                buffer = BytesIO()
-                with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-                    zf.writestr("data.txt", f"artifact_id={artifact_id}\n")
-                buffer.seek(0)
-                s3_client.put_object(
-                    Bucket=BUCKET_NAME,
-                    Key=zip_key,
-                    Body=buffer.read(),
-                    ContentType="application/zip"
-                )
-                log_event(
-                    "info",
-                    f"Stored data.zip at s3://{BUCKET_NAME}/{zip_key}",
-                    event=event,
-                    context=context,
-                    model_id=artifact_id,
-                )
-        except Exception as e:
-            log_event(
-                "warning",
-                f"Failed to create/store data.zip for {artifact_id} at s3://{BUCKET_NAME}/{zip_key}: {e}",
-                event=event,
-                context=context,
-                model_id=artifact_id,
-                error_code="zip_store_failed",
-            )
 
         latency = perf_counter() - start_time
         log_event(

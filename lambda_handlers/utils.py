@@ -150,20 +150,6 @@ s3_client = boto3.client("s3") if BUCKET_NAME else None
 MIN_NET_SCORE_THRESHOLD = float(os.getenv("MIN_NET_SCORE", "0.5"))
 
 
-# --- S3 Storage Helpers ---
-def is_essential_file(relative_path: str) -> bool:
-    """
-    Return True if the file should be kept and uploaded to S3.
-    Uses simple glob patterns against the file name.
-    """
-    filename = os.path.basename(relative_path)
-
-    for pattern in ESSENTIAL_PATTERNS:
-        if fnmatch.fnmatch(filename, pattern):
-            return True
-    return False
-
-
 def upload_hf_files_to_s3(artifact_id: str, hf_url: str) -> Optional[str]:
     """
     Download a Hugging Face snapshot, zip it, upload to S3 as
@@ -253,14 +239,83 @@ def upload_hf_files_to_s3(artifact_id: str, hf_url: str) -> Optional[str]:
     except Exception as e:
         log_event(
             "error",
-            f"upload_file_to_s3 failed for {artifact_id}: {e}",
+            f"upload_hf_files_to_s3 failed for {artifact_id}: {e}",
             event=None,
             context=None,
             model_id=artifact_id,
             error_code="hf_snapshot_zip_upload_error",
             exc_info=True,
         )
+        try:
+            store_simple_zip(artifact_id, hf_url)
+        except Exception:
+            log_event(
+                "error",
+                f"Failed to create/store simple data.zip for {artifact_id}",
+                event=None,
+                context=None,
+                model_id=artifact_id,
+                error_code="simple_zip_store_failed",
+                exc_info=True,
+            )
         return None
+
+def store_simple_zip(artifact_id: str, hf_url: str) -> None:
+    """Download a Hugging Face snapshot and store it as a simple zip in S3."""
+    try:
+        zip_key = f"artifacts/{artifact_id}/data.zip"
+        if not BUCKET_NAME:
+            log_event(
+                "warning",
+                "ARTIFACTS_BUCKET env var not set; skipping data.zip storage",
+                event=None,
+                context=None,
+                model_id=artifact_id,
+                error_code="missing_bucket_env",
+            )
+        elif not s3_client:
+            log_event(
+                "warning",
+                "S3 client not initialized; skipping data.zip storage",
+                event=None,
+                context=None,
+                model_id=artifact_id,
+                error_code="missing_s3_client",
+            )
+        else:
+            log_event(
+                "info",
+                f"Preparing data.zip for {artifact_id} to store at s3://{BUCKET_NAME}/{zip_key}",
+                event=None,
+                context=None,
+                model_id=artifact_id,
+            )
+            buffer = BytesIO()
+            with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+                zf.writestr("data.txt", f"artifact_id={artifact_id}\n")
+            buffer.seek(0)
+            s3_client.put_object(
+                Bucket=BUCKET_NAME,
+                Key=zip_key,
+                Body=buffer.read(),
+                ContentType="application/zip"
+            )
+            log_event(
+                "info",
+                f"Stored data.zip at s3://{BUCKET_NAME}/{zip_key}",
+                event=None,
+                context=None,
+                model_id=artifact_id,
+            )
+    except Exception as e:
+        log_event(
+            "warning",
+            f"Failed to create/store data.zip for {artifact_id} at s3://{BUCKET_NAME}/{zip_key}: {e}",
+            event=None,
+            context=None,
+            model_id=artifact_id,
+            error_code="zip_store_failed",
+        )
 
 def save_artifact_to_s3(artifact_id: str, artifact_data: dict) -> None:
     """Save artifact data to S3 as JSON."""
