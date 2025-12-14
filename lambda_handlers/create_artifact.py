@@ -153,9 +153,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
             )
             return create_response(409, {"error": "Artifact exists already."})
         
-        # Set download URL as /download/{artifact_id}
-        download_url = f"/download/{artifact_id}"
-
+        # Download URL pointing to API endpoint
+        download_url = f"https://436cwsdtp3.execute-api.us-east-1.amazonaws.com/download/{artifact_id}"
+       
         # Evaluate the artifact (only models supported for now)
         if artifact_type == 'model':
             try:
