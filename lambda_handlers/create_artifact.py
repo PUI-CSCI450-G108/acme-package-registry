@@ -20,6 +20,8 @@ from lambda_handlers.utils import (
     log_event,
     is_valid_artifact_url,
     upload_essential_hf_files_to_s3,
+    s3_client,
+    BUCKET_NAME,
 )
 from src.artifact_utils import generate_artifact_id
 from src.artifact_store import S3ArtifactStore
@@ -244,7 +246,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
 
         # Also create a small ZIP bundle with a data.txt containing the artifact_id
         try:
-            from lambda_handlers.utils import s3_client, BUCKET_NAME
             if s3_client and BUCKET_NAME:
                 buffer = BytesIO()
                 with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
