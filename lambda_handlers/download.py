@@ -27,7 +27,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
         )
         return cors_response
 
-    path_params: Optional[Dict[str, Any]] = event.get("pathParameters") or event.get("pathParameters") or event.get("pathParameters")
+    path_params: Optional[Dict[str, Any]] = event.get("pathParameters") or {}
     artifact_id = None
     try:
         # HTTP API v2: event["pathParameters"]["artifact_id"]
@@ -36,7 +36,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
     except Exception:
         artifact_id = None
 
-    log_event("info", "download skeleton invoked", event=event, context=context, model_id=artifact_id)
+    log_event("info", "download skeleton invoked", event=event, context=context, artifact_id=artifact_id)
 
     if not artifact_id:
         return create_response(400, {"error": "Missing required path parameter: artifact_id"})
