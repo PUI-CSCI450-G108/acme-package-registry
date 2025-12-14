@@ -295,14 +295,14 @@ async function searchArtifacts() {
     try {
         const baseUrl = getApiBaseUrl();
 
-        // Build search query - search by name or ID
+        // Build search query - search by name using regex
         const searchBody = {
-            name: searchInput
+            regex: searchInput
         };
 
         currentSearchQuery = searchBody;
 
-        const response = await fetch(`${baseUrl}/artifact/search`, {
+        const response = await fetch(`${baseUrl}/artifact/byRegEx`, {
             method: 'POST',
             headers: getHeaders(),
             body: JSON.stringify(searchBody)

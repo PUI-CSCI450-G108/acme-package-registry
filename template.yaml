@@ -382,13 +382,13 @@ Resources:
             ApiId: !Ref AcmeApiGateway
             Path: /reset
             Method: DELETE
-  # Lambda Function for POST /artifact/search
+  # Lambda Function for POST /artifact/byRegEx
   SearchArtifactsFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: .
       Handler: lambda_handlers.search_artifacts.handler
-      Description: Search artifacts by regex and version
+      Description: Search artifacts by regex over names and READMEs
       FunctionName: acme-registry-search-artifacts
       Timeout: 30
       MemorySize: 256
@@ -403,7 +403,7 @@ Resources:
           Type: HttpApi
           Properties:
             ApiId: !Ref AcmeApiGateway
-            Path: /artifact/search
+            Path: /artifact/byRegEx
             Method: POST
 
   # Lambda Function for GET /artifacts/{artifact_type}/{id}
