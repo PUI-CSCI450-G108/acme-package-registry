@@ -216,10 +216,19 @@ def upload_hf_files_to_s3(artifact_id: str, hf_url: str) -> Optional[str]:
             model_id=artifact_id,
         )
 
+        # Constrain snapshot to essential files to reduce /tmp usage
+        allow_patterns = ESSENTIAL_PATTERNS
+        ignore_patterns = ["*.md", "*.txt", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.svg", "*.psd", "*.pptx", "*.xlsx", "*.csv", "*.parquet", "*.tar", "*.zip", "*.7z", "*.rar"]
+        # Force cache under /tmp to avoid writing elsewhere
+        os.environ.setdefault("HF_HOME", "/tmp/hf-home")
+        os.environ.setdefault("HUGGINGFACE_HUB_CACHE", "/tmp/hf-cache")
+
         local_dir = snapshot_download(
             repo_id=repo_id,
-            repo_type="model",
+            repo_type=repo_type,
             token=hf_token,
+            allow_patterns=allow_patterns,
+            ignore_patterns=ignore_patterns,
         )
 
         zip_key = f"artifacts/{artifact_id}/data.zip"
