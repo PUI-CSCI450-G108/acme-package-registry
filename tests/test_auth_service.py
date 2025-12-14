@@ -1,7 +1,7 @@
 import pytest
 
 from src.auth import AuthError, AuthService, InMemoryTokenStore, InvalidTokenError
-from src.user_management import InMemoryUserRepository, create_user
+from src.user_management import InMemoryUserRepository, UserRepository, create_user
 
 
 @pytest.fixture(autouse=True)
@@ -58,3 +58,51 @@ def test_admin_register_and_logout_revokes_token(auth_service):
 
     with pytest.raises(InvalidTokenError):
         auth_service.authenticate_token(token)
+
+
+class FakeRepo(UserRepository):
+    """A minimal repository to simulate non-in-memory backends."""
+
+    def __init__(self, user):
+        self._user = user
+        self._users = {user.username: user}
+
+    def add_user(self, user):
+        if user.username in self._users:
+            raise ValueError("User already exists")
+        self._users[user.username] = user
+
+    def get_user(self, username):
+        return self._users.get(username)
+
+    def delete_user(self, username):
+        return bool(self._users.pop(username, None))
+
+
+def test_repo_admin_tokens_without_admin_claim(monkeypatch):
+    # Build a fake repository that reports admin privileges but is not
+    # InMemoryUserRepository, mirroring S3-backed storage.
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("JWT_ALGORITHM", "HS256")
+
+    real_repo = InMemoryUserRepository()
+    token_store = InMemoryTokenStore()
+    service = AuthService(real_repo, token_store)
+
+    admin = service.user_repository.get_user("ece30861defaultadminuser")
+
+    # Issue a token that omits the admin claim to mimic older tokens.
+    admin.is_admin = False
+    token, _ = service.login("ece30861defaultadminuser", "correcthorsebatterystaple123(!__+@**(A'\"`;DROP TABLE artifacts;")
+    admin.is_admin = True
+
+    # Swap in a non-in-memory repository that still knows the admin is an admin.
+    service.user_repository = FakeRepo(admin)
+
+    created = service.register_user(
+        admin_token=token,
+        username="repo-admin-register",
+        password="strongpass",
+    )
+
+    assert created.username == "repo-admin-register"

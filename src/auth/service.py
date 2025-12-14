@@ -93,11 +93,10 @@ class AuthService:
 
         token_is_admin = bool(getattr(payload, "is_admin", False))
 
-        # Only trust the repository flag for the in-memory repository to avoid
-        # relying on remote (e.g., S3-backed) data for admin privilege checks.
-        repo_is_admin = isinstance(self.user_repository, InMemoryUserRepository) and bool(
-            getattr(admin_user, "is_admin", False)
-        )
+        # Check both the token claim and the repository record so admins are
+        # recognized even if their token was issued without the is_admin flag
+        # (e.g., older tokens) or if the repository is not in-memory.
+        repo_is_admin = bool(getattr(admin_user, "is_admin", False))
 
         # ONLY admins may register users: accept if EITHER source says admin
         if not (token_is_admin or repo_is_admin):
