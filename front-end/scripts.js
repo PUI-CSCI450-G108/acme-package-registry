@@ -86,6 +86,8 @@ function getHeaders() {
     const token = getAuthToken();
     if (token) {
         headers['X-Authorization'] = token;
+        // Some deployments expect the bearer token on the Authorization header as well.
+        headers['Authorization'] = token;
     }
     return headers;
 }
@@ -426,7 +428,11 @@ function toggleAdminFeatures() {
     const registerBtn = document.getElementById('register-user-btn');
     if (!registerBtn) return;
 
-    if (isCurrentUserAdmin()) {
+    const token = getAuthToken();
+    const isLoggedIn = Boolean(token && token.trim());
+    const isAdmin = isCurrentUserAdmin();
+
+    if (isLoggedIn && isAdmin) {
         registerBtn.style.display = 'inline-flex';
     } else {
         registerBtn.style.display = 'none';
