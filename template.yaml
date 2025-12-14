@@ -283,9 +283,6 @@ Resources:
   # Lambda Function for GET /artifact/byName/{name}
   GetArtifactByNameFunction:
     Type: AWS::Serverless::Function
-    Policies:
-      S3ReadPolicy:
-      BucketName: !Ref ArtifactsBucketName
     Properties:
       CodeUri: .
       Handler: lambda_handlers.get_artifact_by_name.handler
