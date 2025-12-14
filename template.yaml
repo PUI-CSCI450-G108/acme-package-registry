@@ -153,6 +153,9 @@ Resources:
       Handler: lambda_handlers.create_artifact.handler
       Description: Register a new artifact (model/dataset/code)
       FunctionName: acme-registry-create-artifact
+      Timeout: 60
+      EphemeralStorage:
+        Size: 10240
       Environment:
         Variables:
           HF_TOKEN: !Ref HuggingFaceToken
