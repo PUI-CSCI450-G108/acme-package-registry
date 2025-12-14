@@ -315,6 +315,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
                 "id": artifact_id,
                 "type": artifact_type
             },
+            "data": {
+                "url": new_url,
+                "download_url": existing_artifact.get("data", {}).get("download_url")
+            },
             "rating": rating,
             "type": artifact_type
         }
@@ -336,7 +340,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
         # Return artifact envelope
         return create_response(200, {
             "metadata": updated_artifact["metadata"],
-            "data": {"url": new_url}
+            "data": updated_artifact["data"],
         })
 
     except Exception as e:

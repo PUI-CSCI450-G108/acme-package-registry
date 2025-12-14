@@ -152,6 +152,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
                 error_code="artifact_exists",
             )
             return create_response(409, {"error": "Artifact exists already."})
+        
+        # Set download URL as /download/{artifact_id}
+        download_url = f"/download/{artifact_id}"
 
         # Evaluate the artifact (only models supported for now)
         if artifact_type == 'model':
@@ -211,26 +214,31 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
             rating = None
             base_model = None
 
-        # Create artifact metadata
-        metadata = {
-            "name": name,
-            "id": artifact_id,
-            "type": artifact_type
-        }
-
-        # Store artifact data in S3
+        # Create artifact data
         artifact_data = {
+            "metadata": {
+                "name": name,
+                "id": artifact_id,
+                "type": artifact_type,
+            },
+            "data": {
+                "url": url,
+                "download_url": download_url, 
+            },
+        }
+        storage_data = {
             "url": url,
-            "metadata": metadata,
             "rating": rating,
-            "type": artifact_type
+            "metadata": artifact_data.get("metadata", {}),
+            "data": artifact_data.get("data", {}),
+            "type": artifact_type,
         }
 
         # Add base_model to artifact data if present (for lineage tracking)
         if base_model is not None:
             artifact_data["base_model"] = base_model
 
-        save_artifact_to_s3(artifact_id, artifact_data)
+        save_artifact_to_s3(artifact_id, storage_data)
 
         latency = perf_counter() - start_time
         log_event(
@@ -292,10 +300,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
             )
 
         # Return artifact envelope
-        return create_response(201, {
-            "metadata": metadata,
-            "data": {"url": url}
-        })
+        return create_response(201, artifact_data)
 
     except Exception as e:
         latency = perf_counter() - start_time

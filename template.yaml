@@ -579,6 +579,24 @@ Resources:
             Path: /audit/package-confusion
             Method: GET
 
+  # Lambda Function for GET /download /{artifact_id}
+  DownloadFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: lambda_handlers.download.handler
+      Description: Download endpoint that downloads artifact 
+      FunctionName: acme-registry-download
+      Timeout: 10
+      MemorySize: 128
+      Events:
+        DownloadApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AcmeApiGateway
+            Path: /download/{artifact_id}
+            Method: GET
+
 Outputs:
   ApiGatewayUrl:
     Description: "API Gateway endpoint URL"
@@ -675,3 +693,13 @@ Outputs:
     Value: !Sub "https://${CloudFrontDistribution.DomainName}"
     Export:
       Name: !Sub "${AWS::StackName}-CloudFrontUrl"
+
+  DownloadFunctionArn:
+    Description: "Download Lambda Function ARN"
+    Value: !GetAtt DownloadFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-DownloadFunctionArn"
+
+  DownloadFunctionName:
+    Description: "Download Lambda Function Name"
+    Value: !Ref DownloadFunction
