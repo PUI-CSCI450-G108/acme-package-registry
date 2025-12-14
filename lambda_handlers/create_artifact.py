@@ -189,6 +189,31 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
                 # Extract base_model for lineage tracking (if present in rating)
                 # Note: base_model is not part of ModelRating schema but is added by evaluate_model
                 base_model = rating.pop("base_model", None)
+
+                # Extract license for license-check endpoint
+                # We need to fetch model_info again to get license from cardData
+                license_str = None
+                try:
+                    from src.metrics.helpers.pull_model import pull_model_info, canonicalize_hf_url
+                    canonical_url = canonicalize_hf_url(url) if url.startswith("https://huggingface.co/") else url
+                    model_info = pull_model_info(canonical_url)
+                    if model_info and hasattr(model_info, "cardData") and model_info.cardData:
+                        license_str = model_info.cardData.get("license")
+                    log_event(
+                        "info",
+                        f"Extracted license for artifact {artifact_id}: {license_str}",
+                        event=event,
+                        context=context,
+                        model_id=artifact_id,
+                    )
+                except Exception as e:
+                    log_event(
+                        "warning",
+                        f"Failed to extract license for artifact {artifact_id}: {e}",
+                        event=event,
+                        context=context,
+                        model_id=artifact_id,
+                    )
             except Exception as e:
                 latency = perf_counter() - start_time
                 log_event(
@@ -265,9 +290,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
             },
             "data": {
                 "url": url,
-                "download_url": download_url, 
+                "download_url": download_url,
             },
         }
+
+        # Add license to metadata if available (for models)
+        if artifact_type == 'model' and 'license_str' in locals() and license_str:
+            artifact_data["metadata"]["license"] = license_str
+
         storage_data = {
             "url": url,
             "rating": rating,
