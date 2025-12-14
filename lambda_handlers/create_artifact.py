@@ -20,9 +20,13 @@ from lambda_handlers.utils import (
     log_event,
     is_valid_artifact_url,
     upload_essential_hf_files_to_s3,
+    s3_client,
+    BUCKET_NAME,
 )
 from src.artifact_utils import generate_artifact_id
 from src.artifact_store import S3ArtifactStore
+from io import BytesIO
+import zipfile
 
 
 def handler(event: Dict[str, Any], context: Any) -> Dict:
@@ -239,6 +243,31 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
             artifact_data["base_model"] = base_model
 
         save_artifact_to_s3(artifact_id, storage_data)
+
+        # Also create a small ZIP bundle with a data.txt containing the artifact_id
+        try:
+            if s3_client and BUCKET_NAME:
+                buffer = BytesIO()
+                with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+                    zf.writestr("data.txt", f"artifact_id={artifact_id}\n")
+                buffer.seek(0)
+                zip_key = f"artifacts/{artifact_id}/data.zip"
+                s3_client.put_object(
+                    Bucket=BUCKET_NAME,
+                    Key=zip_key,
+                    Body=buffer.read(),
+                    ContentType="application/zip"
+                )
+                log_event("info", f"Stored data.zip for {artifact_id}", event=event, context=context, model_id=artifact_id)
+        except Exception as e:
+            log_event(
+                "warning",
+                f"Failed to create/store data.zip for {artifact_id}: {e}",
+                event=event,
+                context=context,
+                model_id=artifact_id,
+                error_code="zip_store_failed",
+            )
 
         latency = perf_counter() - start_time
         log_event(
