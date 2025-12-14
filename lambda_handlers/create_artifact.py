@@ -226,12 +226,19 @@ def handler(event: Dict[str, Any], context: Any) -> Dict:
                 "download_url": download_url, 
             },
         }
+        storage_data = {
+            "url": url,
+            "rating": rating,
+            "metadata": artifact_data.get("metadata", {}),
+            "data": artifact_data.get("data", {}),
+            "type": artifact_type,
+        }
 
         # Add base_model to artifact data if present (for lineage tracking)
         if base_model is not None:
             artifact_data["base_model"] = base_model
 
-        save_artifact_to_s3(artifact_id, artifact_data)
+        save_artifact_to_s3(artifact_id, storage_data)
 
         latency = perf_counter() - start_time
         log_event(
