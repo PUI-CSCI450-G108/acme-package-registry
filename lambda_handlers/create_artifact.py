@@ -9,7 +9,6 @@ from time import perf_counter
 import logging
 import os
 from typing import Dict, Any
-from huggingface_hub import snapshot_download
 
 from lambda_handlers.utils import (
     create_response,

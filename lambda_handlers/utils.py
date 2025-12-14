@@ -149,6 +149,27 @@ s3_client = boto3.client("s3") if BUCKET_NAME else None
 
 MIN_NET_SCORE_THRESHOLD = float(os.getenv("MIN_NET_SCORE", "0.5"))
 
+# Files essential to clone/use a model locally
+ESSENTIAL_PATTERNS: List[str] = [
+    "*.json",
+    "*.bin",
+    "*.safetensors",
+    "tokenizer.json",
+    "config.json",
+    "pytorch_model.bin",
+    "model.safetensors",
+    "vocab.txt",
+    "merges.txt",
+    "special_tokens_map.json",
+]
+
+def is_essential_file(relative_path: str) -> bool:
+    """Return True if the file should be kept and uploaded to S3."""
+    filename = os.path.basename(relative_path)
+    for pattern in ESSENTIAL_PATTERNS:
+        if fnmatch.fnmatch(filename, pattern):
+            return True
+    return False
 
 def upload_hf_files_to_s3(artifact_id: str, hf_url: str) -> Optional[str]:
     """
@@ -209,7 +230,8 @@ def upload_hf_files_to_s3(artifact_id: str, hf_url: str) -> Optional[str]:
                     for fname in files:
                         file_path = os.path.join(root, fname)
                         arcname = os.path.relpath(file_path, start=local_dir)
-                        zf.write(file_path, arcname)
+                        if is_essential_file(arcname):
+                            zf.write(file_path, arcname)
                 zf.writestr("data.txt", f"artifact_id={artifact_id}\nrepo_id={repo_id}\nrepo_type={repo_type}\n")
             buffer.seek(0)
 
